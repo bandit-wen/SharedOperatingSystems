@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍳 操作系统异步性小课堂 · 做菜 vs 烧水</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+        }
+        body {
+            background: linear-gradient(145deg, #f7f3e9 0%, #fff4e6 100%);
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 2.5rem;
+            color: #2d4059;
+            margin: 0;
+            text-shadow: 2px 2px 0 #fbd46d;
+        }
+        .header p {
+            font-size: 1.2rem;
+            color: #3b1e1e;
+            background: #f8e3c2;
+            display: inline-block;
+            padding: 10px 24px;
+            border-radius: 40px;
+            font-weight: 500;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            justify-content: center;
+            max-width: 1300px;
+            width: 100%;
+            margin: 20px 0;
+        }
+        .card {
+            flex: 1 1 450px;
+            background: #fffbf2;
+            border-radius: 50px 50px 30px 30px;
+            box-shadow: 0 20px 30px -10px rgba(98, 65, 28, 0.3), 0 8px 0 0 #c1a78b inset;
+            padding: 25px 30px 35px;
+            transition: transform 0.2s ease;
+            border: 4px solid #f1d5b5;
+        }
+        .card:hover {
+            transform: scale(1.02);
+        }
+        .card h2 {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.9rem;
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #4a2c2c;
+            border-bottom: 4px dotted #e9b384;
+            padding-bottom: 15px;
+        }
+        .card h2 span {
+            background: #fbd46d;
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-size: 1rem;
+            color: #2d4059;
+            letter-spacing: 1px;
+        }
+        .chef-area {
+            background: #e6d5b8;
+            border-radius: 40px 40px 20px 20px;
+            padding: 20px;
+            box-shadow: inset 0 0 0 3px #faf0d7, 0 8px 0 0 #aa8c6e;
+        }
+        .process-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin: 20px 0;
+            background: #fdf7ec;
+            border-radius: 60px;
+            padding: 15px 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .process-icon {
+            font-size: 3rem;
+            min-width: 70px;
+            text-align: center;
+            filter: drop-shadow(2px 4px 4px rgba(0,0,0,0.2));
+        }
+        .progress-area {
+            flex: 1;
+        }
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 600;
+            color: #5a3e2b;
+            margin-bottom: 5px;
+        }
+        .progress-bar-bg {
+            background: #d9c5ad;
+            height: 30px;
+            border-radius: 30px;
+            overflow: hidden;
+            box-shadow: inset 0 3px 6px #b29172;
+            border: 2px solid #b68b65;
+        }
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #f9b84a, #ff8a5c);
+            transition: width 0.1s linear;
+            border-radius: 30px;
+            box-shadow: 0 0 10px #ffbe5e;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 10px;
+            color: #3b1e1e;
+            font-weight: bold;
+            font-size: 0.9rem;
+            text-shadow: 1px 1px 0 white;
+        }
+        .status-badge {
+            font-size: 1rem;
+            background: #2d4059;
+            color: #fbd46d;
+            border-radius: 40px;
+            padding: 6px 16px;
+            font-weight: 600;
+            display: inline-block;
+            box-shadow: 0 2px 0 #152238;
+        }
+        .io-symbol {
+            background: #d68b8b;
+            color: white;
+            border-radius: 30px;
+            padding: 4px 15px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 30px;
+            justify-content: center;
+        }
+        .btn {
+            border: none;
+            background: #ffd89a;
+            padding: 16px 28px;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: #2d4059;
+            cursor: pointer;
+            box-shadow: 0 7px 0 #b68b65, 0 4px 12px rgba(0,0,0,0.2);
+            transition: 0.05s linear;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 2px solid #fcf0da;
+        }
+        .btn:active {
+            transform: translateY(5px);
+            box-shadow: 0 2px 0 #b68b65, 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .btn:disabled {
+            opacity: 0.4;
+            transform: translateY(5px);
+            box-shadow: 0 2px 0 #b68b65;
+            pointer-events: none;
+        }
+        .btn.reset {
+            background: #c7d3d4;
+            box-shadow: 0 7px 0 #7e8c8d;
+            color: #1e2f3a;
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 1.1rem;
+            color: #45250b;
+            background: #faeac9;
+            padding: 10px 35px;
+            border-radius: 40px;
+            border: 2px solid #dbaa7a;
+        }
+        .highlight {
+            background: #fbd46d;
+            padding: 2px 10px;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>👩‍🍳 操作系统的异步性 · 厨房大作战</h1>
+        <p>🐌 I/O阻塞（等水开） vs  ⚡ 异步调度（切菜/煮汤两不误）</p>
+    </div>
+
+    <div class="row">
+        <!-- 同步阻塞模式 (无异步性) 左卡 -->
+        <div class="card" id="syncCard">
+            <h2>🍲 传统厨房 · 阻塞大法 <span>没有异步性</span></h2>
+            <div class="chef-area">
+                <div class="process-row">
+                    <div class="process-icon">👨‍🍳</div>
+                    <div class="progress-area">
+                        <div class="progress-label">
+                            <span>大厨A · 炖牛肉 (I/O密集型) </span>
+                            <span id="syncP1Status" class="status-badge">🥩 备菜中</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div id="syncP1Fill" class="progress-fill" style="width:0%;">0%</div>
+                        </div>
+                        <div id="syncP1IoMsg" class="io-symbol" style="margin-top:6px;">⚡ 无I/O等待</div>
+                    </div>
+                </div>
+                <div class="process-row">
+                    <div class="process-icon">👩‍🍳</div>
+                    <div class="progress-area">
+                        <div class="progress-label">
+                            <span>帮厨B · 拍黄瓜 (CPU任务) </span>
+                            <span id="syncP2Status" class="status-badge">🥒 等待大厨</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div id="syncP2Fill" class="progress-fill" style="width:0%;">0%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 20px; background: #fdeacb; border-radius: 30px; padding: 10px;">
+                ⏳ 大厨炖肉若等水开（I/O阻塞），帮厨只能干瞪眼，整个厨房暂停！
+            </div>
+            <div class="button-group">
+                <button class="btn" id="startSyncBtn">🔥 启动阻塞模拟</button>
+            </div>
+        </div>
+
+        <!-- 异步并发模式 (体现异步性) 右卡 -->
+        <div class="card" id="asyncCard">
+            <h2>🍛 异步厨房 · 并发料理 <span>异步性拉满</span></h2>
+            <div class="chef-area">
+                <div class="process-row">
+                    <div class="process-icon">🧑‍🍳</div>
+                    <div class="progress-area">
+                        <div class="progress-label">
+                            <span>大厨A · 炖牛肉 (I/O) </span>
+                            <span id="asyncP1Status" class="status-badge">🥩 炖煮中</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div id="asyncP1Fill" class="progress-fill" style="width:0%;">0%</div>
+                        </div>
+                        <div id="asyncP1IoMsg" class="io-symbol" style="margin-top:6px;">⚡ 无I/O等待</div>
+                    </div>
+                </div>
+                <div class="process-row">
+                    <div class="process-icon">🧑‍🍳</div>
+                    <div class="progress-area">
+                        <div class="progress-label">
+                            <span>帮厨B · 拍黄瓜 (CPU) </span>
+                            <span id="asyncP2Status" class="status-badge">🥒 随时待命</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div id="asyncP2Fill" class="progress-fill" style="width:0%;">0%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 20px; background: #fdeacb; border-radius: 30px; padding: 10px;">
+                ⏳ 大厨等水开时，帮厨咔咔拍黄瓜，CPU不闲置！任务进度异步推进。
+            </div>
+            <div class="button-group">
+                <button class="btn" id="startAsyncBtn">⚡ 启动异步模拟</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button class="btn reset" id="resetBtn">🔄 重置厨房 · 所有进程清零</button>
+    </div>
+    <div class="footer">
+        💡 <span class="highlight">操作系统异步性</span> ：进程以不可预知的速度推进，等待资源时自动让出CPU，别人就能干活啦！
+    </div>
+
+    <script>
+        (function() {
+            // ---------- 同步区 状态变量 ----------
+            let syncP1 = 0;                 // 大厨A进度 0-100
+            let syncP2 = 0;                 // 帮厨B进度
+            let syncP1Waiting = false;       // 是否在I/O等待（等水开）
+            let syncIOCounter = 0;            // I/O剩余等待 tick 数
+            let syncP1Done = false;           // 大厨A是否完成（进度>=100）
+            let syncP2Done = false;           
+            // 记录阈值是否触发过 (20%, 50%, 80%)  模拟三次“等水开”
+            let syncTriggered = [false, false, false]; 
+            const syncThresholds = [20, 50, 80];
+            let syncInterval = null;
+
+            // ---------- 异步区 状态变量 ----------
+            let asyncP1 = 0;
+            let asyncP2 = 0;
+            let asyncP1Waiting = false;
+            let asyncIOCounter = 0;
+            let asyncP1Done = false;
+            let asyncP2Done = false;
+            let asyncTriggered = [false, false, false];
+            const asyncThresholds = [20, 50, 80];   // 同样阈值公平对比
+            let asyncInterval = null;
+
+            // ---------- DOM 元素 ----------
+            // 同步
+            const syncP1Fill = document.getElementById('syncP1Fill');
+            const syncP2Fill = document.getElementById('syncP2Fill');
+            const syncP1Status = document.getElementById('syncP1Status');
+            const syncP2Status = document.getElementById('syncP2Status');
+            const syncP1IoMsg = document.getElementById('syncP1IoMsg');
+            // 异步
+            const asyncP1Fill = document.getElementById('asyncP1Fill');
+            const asyncP2Fill = document.getElementById('asyncP2Fill');
+            const asyncP1Status = document.getElementById('asyncP1Status');
+            const asyncP2Status = document.getElementById('asyncP2Status');
+            const asyncP1IoMsg = document.getElementById('asyncP1IoMsg');
+
+            const startSyncBtn = document.getElementById('startSyncBtn');
+            const startAsyncBtn = document.getElementById('startAsyncBtn');
+            const resetBtn = document.getElementById('resetBtn');
+
+            // ---------- 辅助函数 刷新UI ----------
+            function updateSyncUI() {
+                // 更新进度条和文字
+                syncP1Fill.style.width = syncP1 + '%';
+                syncP1Fill.innerText = Math.floor(syncP1) + '%';
+                syncP2Fill.style.width = syncP2 + '%';
+                syncP2Fill.innerText = Math.floor(syncP2) + '%';
+
+                // 大厨A状态
+                if (syncP1 >= 100) {
+                    syncP1Status.innerText = '✅ 炖肉完成';
+                    syncP1Status.style.background = '#417d5e';
+                    syncP1Status.style.color = 'white';
+                } else if (syncP1Waiting) {
+                    syncP1Status.innerText = `⏳ 等水开 (${syncIOCounter}tick)`;
+                    syncP1Status.style.background = '#b35252';
+                } else {
+                    syncP1Status.innerText = '🥩 炖肉中';
+                    syncP1Status.style.background = '#2d4059';
+                }
+
+                // I/O 提示小字
+                if (syncP1Waiting) {
+                    syncP1IoMsg.innerText = '🚰 等待水开 · CPU空闲';
+                } else {
+                    syncP1IoMsg.innerText = '⚡ 无需I/O · 炖肉中';
+                }
+
+                // 帮厨B状态 (同步区只有P1完成后才能干活)
+                if (syncP2 >= 100) {
+                    syncP2Status.innerText = '✅ 拍黄瓜完成';
+                    syncP2Status.style.background = '#417d5e';
+                } else if (!syncP1Done && syncP1 < 100) {
+                    syncP2Status.innerText = '⏸️ 等待大厨';
+                    syncP2Status.style.background = '#9e7b5c';
+                } else if (syncP1Done && syncP2 < 100) {
+                    syncP2Status.innerText = '🥒 拍黄瓜中';
+                    syncP2Status.style.background = '#2d4059';
+                } else {
+                    syncP2Status.innerText = '🥒 待命中';
+                }
+
+                // 如果P2完成或P1完成，停掉定时器（双完成）
+                if (syncP1 >= 100 && syncP2 >= 100) {
+                    if (syncInterval) {
+                        clearInterval(syncInterval);
+                        syncInterval = null;
+                        startSyncBtn.disabled = false;
+                    }
+                }
+            }
+
+            function updateAsyncUI() {
+                asyncP1Fill.style.width = asyncP1 + '%';
+                asyncP1Fill.innerText = Math.floor(asyncP1) + '%';
+                asyncP2Fill.style.width = asyncP2 + '%';
+                asyncP2Fill.innerText = Math.floor(asyncP2) + '%';
+
+                if (asyncP1 >= 100) {
+                    asyncP1Status.innerText = '✅ 炖肉完成';
+                    asyncP1Status.style.background = '#417d5e';
+                } else if (asyncP1Waiting) {
+                    asyncP1Status.innerText = `⏳ 等水开 (${asyncIOCounter}tick)`;
+                    asyncP1Status.style.background = '#b35252';
+                } else {
+                    asyncP1Status.innerText = '🥩 炖肉中';
+                    asyncP1Status.style.background = '#2d4059';
+                }
+
+                if (asyncP1Waiting) {
+                    asyncP1IoMsg.innerText = '🚰 等待水开 · 但帮厨在拍黄瓜！';
+                } else {
+                    asyncP1IoMsg.innerText = '⚡ 无需I/O';
+                }
+
+                if (asyncP2 >= 100) {
+                    asyncP2Status.innerText = '✅ 拍黄瓜完成';
+                    asyncP2Status.style.background = '#417d5e';
+                } else if (asyncP2 < 100) {
+                    asyncP2Status.innerText = '🥒 拍黄瓜中';
+                    asyncP2Status.style.background = '#2d4059';
+                }
+
+                // 异步区两者都完成停定时器
+                if (asyncP1 >= 100 && asyncP2 >= 100) {
+                    if (asyncInterval) {
+                        clearInterval(asyncInterval);
+                        asyncInterval = null;
+                        startAsyncBtn.disabled = false;
+                    }
+                }
+            }
+
+            // ---------- 重置所有 ----------
+            function resetAll() {
+                // 停止定时器
+                if (syncInterval) {
+                    clearInterval(syncInterval);
+                    syncInterval = null;
+                }
+                if (asyncInterval) {
+                    clearInterval(asyncInterval);
+                    asyncInterval = null;
+                }
+
+                // 重置同步变量
+                syncP1 = 0; syncP2 = 0; syncP1Waiting = false; syncIOCounter = 0; 
+                syncP1Done = false; syncP2Done = false; syncTriggered = [false, false, false];
+                // 重置异步变量
+                asyncP1 = 0; asyncP2 = 0; asyncP1Waiting = false; asyncIOCounter = 0;
+                asyncP1Done = false; asyncP2Done = false; asyncTriggered = [false, false, false];
+
+                // 解锁按钮
+                startSyncBtn.disabled = false;
+                startAsyncBtn.disabled = false;
+
+                // 刷新UI
+                updateSyncUI();
+                updateAsyncUI();
+                // 额外重置状态文案
+                syncP1Status.innerText = '🥩 备菜中';
+                syncP1Status.style.background = '#2d4059';
+                syncP2Status.innerText = '🥒 等待大厨';
+                syncP2Status.style.background = '#9e7b5c';
+                asyncP1Status.innerText = '🥩 炖煮中';
+                asyncP1Status.style.background = '#2d4059';
+                asyncP2Status.innerText = '🥒 随时待命';
+                asyncP2Status.style.background = '#2d4059';
+                syncP1IoMsg.innerText = '⚡ 无I/O等待';
+                asyncP1IoMsg.innerText = '⚡ 无I/O等待';
+            }
+
+            // ---------- 检查并触发I/O (同步区) ----------
+            function checkAndTriggerSyncIO() {
+                if (syncP1Waiting) return; // 已经在等待
+                if (syncP1 >= 100) return;  // 完成了
+                for (let i = 0; i < syncThresholds.length; i++) {
+                    let th = syncThresholds[i];
+                    if (!syncTriggered[i] && syncP1 >= th) {
+                        // 触发I/O等待，持续8个tick
+                        syncP1Waiting = true;
+                        syncIOCounter = 8;    // 8次更新 ≈ 0.8秒 (100ms每次)
+                        syncTriggered[i] = true;
+                        break;
+                    }
+                }
+            }
+
+            // ---------- 检查并触发I/O (异步区) ----------
+            function checkAndTriggerAsyncIO() {
+                if (asyncP1Waiting) return;
+                if (asyncP1 >= 100) return;
+                for (let i = 0; i < asyncThresholds.length; i++) {
+                    let th = asyncThresholds[i];
+                    if (!asyncTriggered[i] && asyncP1 >= th) {
+                        asyncP1Waiting = true;
+                        asyncIOCounter = 8;
+                        asyncTriggered[i] = true;
+                        break;
+                    }
+                }
+            }
+
+            // ---------- 同步区 定时器逻辑 ----------
+            function syncTick() {
+                // 1. 处理P1 I/O等待递减
+                if (syncP1Waiting) {
+                    syncIOCounter--;
+                    if (syncIOCounter <= 0) {
+                        syncP1Waiting = false;   // 水开了，继续炖
+                    }
+                    // 等待期间不增加P1，P2也不能动（阻塞）
+                } else {
+                    // 不在等待: 若P1未完成，增加P1
+                    if (!syncP1Done && syncP1 < 100) {
+                        syncP1 = Math.min(100, syncP1 + 0.8); // 每步增加0.8% 平滑
+                        if (syncP1 >= 100) {
+                            syncP1 = 100;
+                            syncP1Done = true;
+                        }
+                        // 增加后检查是否触发I/O
+                        checkAndTriggerSyncIO();
+                    }
+                }
+
+                // 同步区P2规则: 只有P1完成 (进度>=100) 后P2才能运行
+                if (syncP1 >= 100 && !syncP2Done && syncP2 < 100) {
+                    // P2运行 (没有任何I/O)
+                    syncP2 = Math.min(100, syncP2 + 1.2); // 比P1稍快一点点
+                    if (syncP2 >= 100) {
+                        syncP2 = 100;
+                        syncP2Done = true;
+                    }
+                }
+
+                // 边缘: 如果P1刚好完成，记得标记done (已经处理)
+                if (syncP1 >= 100 && !syncP1Done) syncP1Done = true;
+                if (syncP2 >= 100 && !syncP2Done) syncP2Done = true;
+
+                updateSyncUI();
+            }
+
+            // ---------- 异步区 定时器逻辑 ----------
+            function asyncTick() {
+                // 处理P1 I/O等待
+                if (asyncP1Waiting) {
+                    asyncIOCounter--;
+                    if (asyncIOCounter <= 0) {
+                        asyncP1Waiting = false;
+                    }
+                    // 等待期间P1不增加
+                } else {
+                    if (!asyncP1Done && asyncP1 < 100) {
+                        asyncP1 = Math.min(100, asyncP1 + 0.8);
+                        if (asyncP1 >= 100) {
+                            asyncP1 = 100;
+                            asyncP1Done = true;
+                        }
+                        checkAndTriggerAsyncIO();
+                    }
+                }
+
+                // P2 始终可以运行 (只要未完成) —— 体现异步性，不等I/O
+                if (!asyncP2Done && asyncP2 < 100) {
+                    asyncP2 = Math.min(100, asyncP2 + 1.2);
+                    if (asyncP2 >= 100) {
+                        asyncP2 = 100;
+                        asyncP2Done = true;
+                    }
+                }
+
+                if (asyncP1 >= 100 && !asyncP1Done) asyncP1Done = true;
+                if (asyncP2 >= 100 && !asyncP2Done) asyncP2Done = true;
+
+                updateAsyncUI();
+            }
+
+            // ---------- 启动同步模拟 ----------
+            function startSyncSim() {
+                if (syncInterval) {
+                    clearInterval(syncInterval);
+                    syncInterval = null;
+                }
+                // 重置但只重置同步区？为了独立，我们重置同步区状态(保留异步区)
+                // 但也要重置同步变量到最初，且不影响异步
+                syncP1 = 0; syncP2 = 0; syncP1Waiting = false; syncIOCounter = 0;
+                syncP1Done = false; syncP2Done = false; syncTriggered = [false, false, false];
+                updateSyncUI();
+                syncP1Status.innerText = '🥩 备菜中';  // 额外UI刷新
+                syncP2Status.innerText = '🥒 等待大厨';
+                syncP1Status.style.background = '#2d4059';
+                syncP2Status.style.background = '#9e7b5c';
+                syncP1IoMsg.innerText = '⚡ 无I/O等待';
+
+                startSyncBtn.disabled = true;  // 防止二次点击
+                syncInterval = setInterval(() => {
+                    syncTick();
+                    // 如果两个都完成了，清除定时器并启用按钮
+                    if (syncP1 >= 100 && syncP2 >= 100) {
+                        clearInterval(syncInterval);
+                        syncInterval = null;
+                        startSyncBtn.disabled = false;
+                    }
+                }, 100); // 每100ms更新一次
+            }
+
+            // ---------- 启动异步模拟 ----------
+            function startAsyncSim() {
+                if (asyncInterval) {
+                    clearInterval(asyncInterval);
+                    asyncInterval = null;
+                }
+                // 重置异步区
+                asyncP1 = 0; asyncP2 = 0; asyncP1Waiting = false; asyncIOCounter = 0;
+                asyncP1Done = false; asyncP2Done = false; asyncTriggered = [false, false, false];
+                updateAsyncUI();
+                asyncP1Status.innerText = '🥩 炖煮中';
+                asyncP2Status.innerText = '🥒 随时待命';
+                asyncP1Status.style.background = '#2d4059';
+                asyncP2Status.style.background = '#2d4059';
+                asyncP1IoMsg.innerText = '⚡ 无I/O等待';
+
+                startAsyncBtn.disabled = true;
+                asyncInterval = setInterval(() => {
+                    asyncTick();
+                    if (asyncP1 >= 100 && asyncP2 >= 100) {
+                        clearInterval(asyncInterval);
+                        asyncInterval = null;
+                        startAsyncBtn.disabled = false;
+                    }
+                }, 100);
+            }
+
+            // ---------- 绑定事件 ----------
+            startSyncBtn.addEventListener('click', startSyncSim);
+            startAsyncBtn.addEventListener('click', startAsyncSim);
+            resetBtn.addEventListener('click', resetAll);
+
+            // 初始化UI
+            resetAll();
+        })();
+    </script>
+</body>
+</html>
