@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>操作系统：进程通信 · 管道与PCB动画演示</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+        }
+        body {
+            background: linear-gradient(145deg, #f0f2f5 0%, #e6e9f0 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            padding: 16px;
+        }
+        .card {
+            background: rgba(255,255,255,0.7);
+            backdrop-filter: blur(4px);
+            border-radius: 42px;
+            box-shadow: 0 25px 40px -12px rgba(0,20,40,0.45);
+            padding: 28px 28px 36px;
+            max-width: 1000px;
+            width: fit-content;
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+        h1 {
+            margin: 0 0 12px 0;
+            font-weight: 500;
+            font-size: 2rem;
+            letter-spacing: -0.5px;
+            color: #1e2b3c;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        h1 small {
+            font-size: 0.9rem;
+            background: #2d4059;
+            color: #f0f7ff;
+            padding: 4px 14px;
+            border-radius: 60px;
+            font-weight: 400;
+            letter-spacing: 0.3px;
+        }
+        .canvas-container {
+            background: #1e2f3f;
+            border-radius: 32px;
+            padding: 20px;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.6), 0 12px 24px -8px #0a1a2a;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            width: 100%;
+            height: auto;
+            border-radius: 20px;
+            background: #f8faff;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            cursor: default;
+        }
+        .button-panel {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 14px;
+            margin-top: 26px;
+        }
+        .btn {
+            background: white;
+            border: none;
+            padding: 12px 32px;
+            border-radius: 60px;
+            font-size: 1.1rem;
+            font-weight: 550;
+            color: #1d3557;
+            box-shadow: 0 4px 8px rgba(0,20,40,0.2), 0 1px 3px rgba(0,0,0,0.1);
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid rgba(255,255,255,0.7);
+            cursor: pointer;
+        }
+        .btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 4px rgba(0,20,40,0.2);
+        }
+        .btn:disabled {
+            opacity: 0.4;
+            transform: none;
+            pointer-events: none;
+            filter: grayscale(0.3);
+        }
+        .btn.primary {
+            background: #2b4c7c;
+            color: white;
+            box-shadow: 0 8px 16px -6px #0b2a4a;
+        }
+        .btn.reset {
+            background: #e0e8f5;
+            color: #1d3557;
+        }
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 28px;
+            margin-top: 22px;
+            color: #1e3750;
+            font-weight: 500;
+            background: rgba(255,255,255,0.6);
+            padding: 10px 24px;
+            border-radius: 60px;
+            backdrop-filter: blur(2px);
+            font-size: 0.95rem;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .legend-color {
+            width: 22px;
+            height: 22px;
+            border-radius: 8px;
+            background: #ffb347;
+        }
+        .legend-color.pcb {
+            background: #1e3a5f;
+            border: 2px solid #8db5e0;
+        }
+        .legend-color.pipe {
+            background: #63b3d1;
+        }
+        .footer-note {
+            text-align: center;
+            margin-top: 16px;
+            font-size: 0.9rem;
+            color: #2e405b;
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>
+        🧬 进程通信 · 管道 + PCB
+        <small>歪比巴卜</small>
+    </h1>
+    <div class="canvas-container">
+        <canvas id="osCanvas" width="820" height="520"></canvas>
+    </div>
+
+    <div class="button-panel">
+        <button class="btn primary" id="btnWrite" title="进程A写入管道 (模拟 write() 系统调用)">✍️ 进程A 写入消息</button>
+        <button class="btn primary" id="btnRead" title="进程B从管道读取 (模拟 read() 系统调用)">📖 进程B 读取消息</button>
+        <button class="btn reset" id="btnReset">⟲ 重置演示</button>
+    </div>
+
+    <div class="legend">
+        <span class="legend-item"><span class="legend-color pcb"></span> PCB (进程控制块) 含 FD 表</span>
+        <span class="legend-item"><span class="legend-color" style="background:#2b5a3a;"></span> 管道缓冲区 (最多3条)</span>
+        <span class="legend-item"><span class="legend-color" style="background:#c44536;"></span> 消息在移动 (动画)</span>
+        <span class="legend-item"><span class="legend-color" style="background:gold;"></span> 高亮: 活跃文件描述符</span>
+    </div>
+    <div class="footer-note">
+        ⚙️ PCB中包含 PID、状态、PC、文件描述符表 (fd)。 管道通过 fd3 共享
+    </div>
+</div>
+
+<script>
+    (function() {
+        const canvas = document.getElementById('osCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // ---------- 系统状态 ----------
+        // 管道缓冲区 (最多3条消息)
+        let pipeBuffer = [];                // 存储 { text: string, id: number }
+        let nextMsgId = 1;                  // 用于生成消息 "Msg1", "Msg2" ...
+
+        // 进程B接收统计
+        let receivedCount = 0;
+        let lastReceivedMsg = '—';
+
+        // 动态高亮 & 状态 (用于PCB视觉变化)
+        let highlightFdA = false;            // 高亮进程A 的 fd3 (写端)
+        let highlightFdB = false;            // 高亮进程B 的 fd3 (读端)
+        let procAStatus = 'Ready';            // 默认状态
+        let procBStatus = 'Ready';
+
+        // ---------- 动画相关 ----------
+        let animation = {
+            active: false,
+            type: null,          // 'write' 或 'read'
+            progress: 0,
+            startX: 0, startY: 0,
+            endX: 0, endY: 0,
+            pendingMsg: null,     // 待传输的消息对象 { text, id } (写时为新建，读时为从buffer[0]复制)
+            callback: null        // 动画完成后的回调
+        };
+
+        // 动画步长 (每帧增量)
+        const ANIM_SPEED = 0.025; // 约40帧完成
+
+        // UI 按钮
+        const btnWrite = document.getElementById('btnWrite');
+        const btnRead = document.getElementById('btnRead');
+        const btnReset = document.getElementById('btnReset');
+
+        // 工具函数：启用/禁用按钮 (动画期间禁止操作)
+        function setButtonsDisabled(disabled) {
+            btnWrite.disabled = disabled;
+            btnRead.disabled = disabled;
+            // 重置按钮始终可用 (但要小心打断动画，我们在重置里会清动画)
+            // 但重置按钮不应该被禁用，为了安全重置前会取消动画
+        }
+
+        // ---------- 核心绘图函数 (绘制静态 + PCB细节) ----------
+        function drawStatic() {
+            ctx.clearRect(0, 0, 820, 520);
+
+            // ----- 1. 绘制连接线/背景装饰 (虚线表示管道关联) -----
+            ctx.beginPath();
+            ctx.setLineDash([8, 6]);
+            ctx.strokeStyle = '#76879e';
+            ctx.lineWidth = 1.5;
+            // 从进程A fd3 到管道
+            ctx.moveTo(220, 270);
+            ctx.lineTo(310, 230);
+            // 从管道到进程B fd3
+            ctx.moveTo(470, 230);
+            ctx.lineTo(560, 270);
+            ctx.stroke();
+            ctx.setLineDash([]); // 恢复实线
+
+            // ----- 2. 进程A 控制块 (左) -----
+            ctx.fillStyle = '#1e3a5f';
+            ctx.strokeStyle = '#355c8c';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.roundRect(80, 110, 200, 250, 16); // 自定义方法见下方
+            ctx.fillStyle = '#e5ecf7';
+            ctx.fill();
+            ctx.stroke();
+
+            // 进程名称
+            ctx.font = 'bold 18px "Segoe UI", monospace';
+            ctx.fillStyle = '#0b2b44';
+            ctx.fillText('📦 进程 A', 120, 140);
+            // PCB 细节
+            ctx.font = '500 14px "Fira Code", "Courier New", monospace';
+            ctx.fillStyle = '#102331';
+            let yBase = 170;
+            ctx.fillText(`PID: 1001`, 100, yBase);
+            ctx.fillText(`状态: ${procAStatus}`, 100, yBase + 22);
+            ctx.fillText(`PC: 0x7c4d80`, 100, yBase + 44);
+            ctx.fillText(`文件描述符表:`, 100, yBase + 70);
+
+            // 文件描述符具体行 (fd 0~3)
+            ctx.font = '13px "Fira Code", monospace';
+            // fd0
+            ctx.fillText(`0: stdin`, 110, yBase + 94);
+            ctx.fillText(`1: stdout`, 110, yBase + 114);
+            ctx.fillText(`2: stderr`, 110, yBase + 134);
+            // fd3 (写端) — 可能高亮
+            const fd3Y = yBase + 154;
+            if (highlightFdA) {
+                ctx.fillStyle = '#ffecb3'; // 亮黄底
+                ctx.fillRect(105, fd3Y-14, 150, 20);
+                ctx.fillStyle = '#102331';
+            }
+            ctx.fillText(`3: pipe[1] (写端)`, 110, fd3Y);
+
+            // 可选显示管道引用计数
+            ctx.font = 'italic 11px sans-serif';
+            ctx.fillStyle = '#2f5175';
+            ctx.fillText(`指向管道 inode`, 110, yBase + 180);
+
+            // ----- 3. 进程B 控制块 (右) -----
+            ctx.fillStyle = '#e5ecf7';
+            ctx.strokeStyle = '#355c8c';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.roundRect(540, 110, 200, 250, 16);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.font = 'bold 18px "Segoe UI", monospace';
+            ctx.fillStyle = '#0b2b44';
+            ctx.fillText('📦 进程 B', 590, 140);
+            ctx.font = '500 14px "Fira Code", monospace';
+            ctx.fillStyle = '#102331';
+            yBase = 170;
+            ctx.fillText(`PID: 1002`, 560, yBase);
+            ctx.fillText(`状态: ${procBStatus}`, 560, yBase + 22);
+            ctx.fillText(`PC: 0x9a2f10`, 560, yBase + 44);
+            ctx.fillText(`文件描述符表:`, 560, yBase + 70);
+
+            ctx.font = '13px "Fira Code", monospace';
+            ctx.fillText(`0: stdin`, 570, yBase + 94);
+            ctx.fillText(`1: stdout`, 570, yBase + 114);
+            ctx.fillText(`2: stderr`, 570, yBase + 134);
+            // fd3 (读端) 高亮可能
+            if (highlightFdB) {
+                ctx.fillStyle = '#ffecb3';
+                ctx.fillRect(565, yBase+140, 150, 20);
+                ctx.fillStyle = '#102331';
+            }
+            ctx.fillText(`3: pipe[0] (读端)`, 570, yBase + 154);
+
+            ctx.font = 'italic 11px sans-serif';
+            ctx.fillStyle = '#2f5175';
+            ctx.fillText(`指向管道 inode`, 570, yBase + 180);
+
+            // 进程B 接收信息
+            ctx.fillStyle = '#193b5e';
+            ctx.font = 'bold 13px monospace';
+            ctx.fillText(`已接收: ${receivedCount} 条`, 560, yBase + 210);
+            ctx.fillText(`最后消息: ${lastReceivedMsg}`, 560, yBase + 232);
+
+            // ----- 4. 管道区域 (中间) -----
+            ctx.fillStyle = '#d6e9f5';
+            ctx.strokeStyle = '#2c6b8c';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.roundRect(310, 190, 180, 80, 20);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.font = 'bold 16px "Segoe UI"';
+            ctx.fillStyle = '#11506b';
+            ctx.fillText('📢 管道', 360, 235);
+            ctx.font = '12px monospace';
+            ctx.fillStyle = '#0f3b4f';
+            ctx.fillText('(环形缓冲区)', 360, 260);
+
+            // 绘制管道内数据包 (小圆)
+            if (pipeBuffer.length > 0) {
+                for (let i = 0; i < pipeBuffer.length; i++) {
+                    const msg = pipeBuffer[i];
+                    const x = 340 + i * 38;  // 间距
+                    const y = 215;
+                    // 圆背景
+                    ctx.beginPath();
+                    ctx.arc(x, y, 16, 0, 2*Math.PI);
+                    ctx.fillStyle = '#2b5a3a';
+                    ctx.shadowColor = '#1a3f2a';
+                    ctx.shadowBlur = 6;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.strokeStyle = '#f6ffe0';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.fillStyle = 'white';
+                    ctx.font = 'bold 11px monospace';
+                    ctx.fillText(msg.text, x-13, y+4);
+                }
+            } else {
+                // 空管道显示虚线圆
+                ctx.font = '12px sans-serif';
+                ctx.fillStyle = '#858f9b';
+                ctx.fillText('(空)', 370, 225);
+            }
+
+            // 重置阴影
+            ctx.shadowBlur = 0;
+        }
+
+        // 绘制整体(静态+可能的活动动画小球)
+        function drawFull() {
+            drawStatic();
+
+            // 如果动画激活，绘制移动的消息小球 (覆盖)
+            if (animation.active && animation.pendingMsg) {
+                const p = animation.progress; // 0..1
+                // 线性插值
+                const x = animation.startX * (1 - p) + animation.endX * p;
+                const y = animation.startY * (1 - p) + animation.endY * p;
+
+                // 绘制浮动消息
+                ctx.beginPath();
+                ctx.arc(x, y, 18, 0, 2*Math.PI);
+                ctx.fillStyle = '#c44536';
+                ctx.shadowColor = '#7d2a1f';
+                ctx.shadowBlur = 12;
+                ctx.fill();
+                ctx.strokeStyle = '#fff3d1';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 10px monospace';
+                ctx.fillText(animation.pendingMsg.text, x-13, y+4);
+            }
+        }
+
+        // 辅助：canvas 圆角矩形
+        CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+            if (w < 2 * r) r = w / 2;
+            if (h < 2 * r) r = h / 2;
+            this.moveTo(x + r, y);
+            this.lineTo(x + w - r, y);
+            this.quadraticCurveTo(x + w, y, x + w, y + r);
+            this.lineTo(x + w, y + h - r);
+            this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            this.lineTo(x + r, y + h);
+            this.quadraticCurveTo(x, y + h, x, y + h - r);
+            this.lineTo(x, y + r);
+            this.quadraticCurveTo(x, y, x + r, y);
+            this.closePath();
+            return this;
+        };
+
+        // ---------- 动画循环 ----------
+        function animationLoop() {
+            if (!animation.active) return;
+
+            // 更新进度
+            animation.progress += ANIM_SPEED;
+            if (animation.progress >= 1.0) {
+                animation.progress = 1.0;
+                // 动画结束，执行回调
+                if (animation.callback) {
+                    animation.callback();
+                }
+                // 清除动画状态
+                animation.active = false;
+                // 取消高亮及特殊状态 (由回调内已经处理状态变更，但再确保清除)
+                // 但回调可能已经改了状态, 额外安全清除
+                if (animation.type === 'write') {
+                    // 写动画结束 清除A高亮，恢复状态 (已在callback中完成，但以防重复)
+                } else if (animation.type === 'read') {
+                    // 同理
+                }
+                // 重绘最终静态
+                drawFull();
+                // 启用按钮
+                setButtonsDisabled(false);
+                return;
+            }
+
+            drawFull();
+            requestAnimationFrame(animationLoop);
+        }
+
+        // 开始动画 (参数: 类型, 起始, 终点, 消息, 完成回调)
+        function startAnimation(type, startPos, endPos, msg, onComplete) {
+            if (animation.active) return false;
+
+            animation.active = true;
+            animation.type = type;
+            animation.progress = 0;
+            animation.startX = startPos.x;
+            animation.startY = startPos.y;
+            animation.endX = endPos.x;
+            animation.endY = endPos.y;
+            animation.pendingMsg = msg;
+            animation.callback = onComplete;
+
+            // 禁用按钮
+            setButtonsDisabled(true);
+
+            // 开始循环
+            requestAnimationFrame(animationLoop);
+            return true;
+        }
+
+        // ---------- 事件绑定 ----------
+
+        // 写入操作 (进程A)
+        btnWrite.addEventListener('click', () => {
+            if (animation.active) return;          // 动画中不允许
+            if (pipeBuffer.length >= 3) {
+                alert('管道已满 (最多3条消息) 进程A可能阻塞 (演示忽略阻塞，请先读取)');
+                return;
+            }
+
+            // 生成新消息
+            const newMsg = { text: `Msg${nextMsgId}`, id: nextMsgId };
+
+            // 确定写动画：起点——进程A fd3附近 (200, 270)  终点——下一个空位坐标
+            const startPos = { x: 200, y: 270 };
+            // 根据当前管道长度计算空位坐标 (340 + length*38, 215)
+            const emptyIndex = pipeBuffer.length;  // 0,1,2
+            const endPos = { x: 340 + emptyIndex * 38, y: 215 };
+
+            // 设置高亮与状态
+            highlightFdA = true;
+            procAStatus = 'Writing (写)';
+            procBStatus = 'Ready';  // B不受影响
+
+            // 开始动画 (写回调中才会真正将消息加入管道)
+            const success = startAnimation('write', startPos, endPos, newMsg, () => {
+                // 动画完成: 把消息加入管道
+                pipeBuffer.push(newMsg);
+                nextMsgId++;
+                // 清除高亮 & 恢复状态
+                highlightFdA = false;
+                procAStatus = 'Ready';
+                // 重绘 (drawFull 会在动画结束后调用，但这里再确保)
+                drawFull();
+            });
+
+            if (!success) return;
+            // 立即绘制一帧让动画开始
+            drawFull();
+        });
+
+        // 读取操作 (进程B)
+        btnRead.addEventListener('click', () => {
+            if (animation.active) return;
+            if (pipeBuffer.length === 0) {
+                alert('管道为空，无法读取');
+                return;
+            }
+
+            // 获取最早的消息 (但暂不删除)
+            const msgToRead = pipeBuffer[0];
+
+            // 读动画：起点为管道中该消息的位置 (340 + 0*38, 215) 终点为进程B fd3附近 (590, 270)
+            const startPos = { x: 340, y: 215 };  // 第一条消息固定在此
+            const endPos = { x: 590, y: 270 };
+
+            // 设置高亮与状态
+            highlightFdB = true;
+            procBStatus = 'Reading (读)';
+            procAStatus = 'Ready';
+
+            startAnimation('read', startPos, endPos, msgToRead, () => {
+                // 动画完成：从缓冲区移除第一条消息，更新进程B统计
+                const shifted = pipeBuffer.shift();  // 移除最早
+                if (shifted) {
+                    receivedCount++;
+                    lastReceivedMsg = shifted.text;
+                }
+                // 清除高亮 & 状态恢复
+                highlightFdB = false;
+                procBStatus = 'Ready';
+                drawFull();
+            });
+
+            drawFull();
+        });
+
+        // 重置演示
+        btnReset.addEventListener('click', () => {
+            // 强行终止动画 (如果有)
+            animation.active = false;
+            // 清空管道、重置状态
+            pipeBuffer = [];
+            nextMsgId = 1;
+            receivedCount = 0;
+            lastReceivedMsg = '—';
+            highlightFdA = false;
+            highlightFdB = false;
+            procAStatus = 'Ready';
+            procBStatus = 'Ready';
+            setButtonsDisabled(false);
+            drawFull();
+        });
+
+        // 初始化绘制
+        drawFull();
+
+        // 添加一些预置消息让刚开始更生动 (可选)
+        // 取消注释可以预置两条消息
+        window.addEventListener('load', function() {
+            // 为了演示效果，初始加一条消息让管道非空 (可选)
+            // pipeBuffer.push({text: 'Msg1', id: 1}); nextMsgId=2; receivedCount=0;  // 需要重绘
+            // 但为了空白开始，暂时不加；可加可不加，为了让教学演示更直观，加一条作为初始。
+            // 很多学生会期望看到管道非空。我们加一条吧。
+            pipeBuffer.push({text: 'Msg1', id: 1});
+            nextMsgId = 2;
+            drawFull();
+        });
+
+    })();
+</script>
+</body>
+</html>

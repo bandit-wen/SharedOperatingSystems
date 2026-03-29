@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>处理机调度算法动画演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+        
+        .algorithm-selection {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 30px;
+            justify-content: center;
+        }
+        
+        .algo-btn {
+            padding: 12px 24px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .algo-btn:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .algo-btn.active {
+            background: #2c3e50;
+        }
+        
+        .demo-area {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+        
+        .control-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .control-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+        
+        .btn-secondary {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #c0392b;
+        }
+        
+        .animation-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            min-height: 400px;
+        }
+        
+        .gantt-chart {
+            height: 120px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            position: relative;
+            margin-top: 30px;
+            overflow-x: auto;
+            padding: 10px;
+        }
+        
+        .process-bar {
+            height: 40px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            position: relative;
+            transition: all 0.5s ease;
+        }
+        
+        .time-axis {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .process-queue {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .process-box {
+            padding: 15px;
+            background: #ecf0f1;
+            border-radius: 6px;
+            text-align: center;
+            min-width: 100px;
+        }
+        
+        .process-name {
+            font-weight: bold;
+            font-size: 18px;
+            color: #2c3e50;
+        }
+        
+        .process-detail {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        
+        .current-time {
+            position: absolute;
+            top: -25px;
+            height: 120px;
+            width: 2px;
+            background: #e74c3c;
+            z-index: 10;
+        }
+        
+        .current-time-label {
+            position: absolute;
+            top: -45px;
+            left: -10px;
+            background: #e74c3c;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .stat-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3498db;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        
+        .algorithm-description {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+        
+        .description-content {
+            margin-top: 15px;
+            line-height: 1.8;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .algorithm-selection {
+                flex-direction: column;
+            }
+            
+            .btn-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>处理机调度算法动画演示</h1>
+            <p class="subtitle">可视化展示各种调度算法的工作原理</p>
+        </header>
+        
+        <div class="algorithm-selection">
+            <button class="algo-btn active" data-algo="fcfs">先来先服务 (FCFS)</button>
+            <button class="algo-btn" data-algo="sjf">短作业优先 (SJF)</button>
+            <button class="algo-btn" data-algo="priority">优先级调度 (PR)</button>
+            <button class="algo-btn" data-algo="rr">时间片轮转 (RR)</button>
+            <button class="algo-btn" data-algo="hrrn">高响应比优先 (HRRN)</button>
+        </div>
+        
+        <div class="demo-area">
+            <div class="control-panel">
+                <div class="control-group">
+                    <label for="processes">进程设置 (格式: 进程名,到达时间,运行时间,优先级)</label>
+                    <textarea id="processes" rows="4">P1,0,24,3
+P2,1,3,1
+P3,2,3,3
+P4,3,4,2
+P5,4,5,4</textarea>
+                    <small>每行一个进程，用逗号分隔。优先级可选，默认1</small>
+                </div>
+                
+                <div class="control-group" id="rr-control" style="display: none;">
+                    <label for="time-slice">时间片大小 (仅RR算法)</label>
+                    <input type="number" id="time-slice" value="4" min="1" max="10">
+                </div>
+                
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="start-btn">开始动画</button>
+                    <button class="btn btn-secondary" id="reset-btn">重置</button>
+                    <button class="btn" id="step-btn">单步执行</button>
+                </div>
+            </div>
+            
+            <div class="animation-container">
+                <h3 id="current-algo">先来先服务 (FCFS) 调度算法</h3>
+                <div id="animation-area">
+                    <div class="process-queue" id="ready-queue">
+                        <!-- 就绪队列进程将在这里显示 -->
+                    </div>
+                    
+                    <div id="running-process">
+                        <!-- 当前运行进程将在这里显示 -->
+                    </div>
+                    
+                    <div class="gantt-chart" id="gantt-chart">
+                        <!-- 甘特图将在这里绘制 -->
+                        <div class="current-time" id="current-time">
+                            <div class="current-time-label" id="current-time-label">时间: 0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="time-axis" id="time-axis">
+                        <!-- 时间轴将在这里显示 -->
+                    </div>
+                    
+                    <div class="stats" id="stats">
+                        <!-- 统计数据将在这里显示 -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="algorithm-description">
+                <h3>算法说明</h3>
+                <div class="description-content" id="algo-description">
+                    <p><strong>先来先服务 (FCFS) 调度算法：</strong></p>
+                    <p>按照作业/进程到达的先后次序来进行调度。属于非抢占式调度算法。</p>
+                    <p><strong>特点：</strong></p>
+                    <ul>
+                        <li>实现简单，公平</li>
+                        <li>有利于长作业，不利于短作业</li>
+                        <li>可能导致"护航效应"（短作业等待长作业完成）</li>
+                        <li>平均等待时间可能较长</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let currentAlgorithm = 'fcfs';
+        let processes = [];
+        let time = 0;
+        let timeSlice = 4; // RR算法的时间片
+        let animationInterval = null;
+        let animationSpeed = 1000; // 动画速度（毫秒）
+        let isAnimating = false;
+        let completedProcesses = [];
+        let ganttData = [];
+        let readyQueue = [];
+        let runningProcess = null;
+        let nextProcessId = 1;
+        
+        // 算法描述
+        const algorithmDescriptions = {
+            fcfs: {
+                name: "先来先服务 (FCFS)",
+                description: `
+                    <p><strong>先来先服务 (FCFS) 调度算法：</strong></p>
+                    <p>按照作业/进程到达的先后次序来进行调度。属于非抢占式调度算法。</p>
+                    <p><strong>特点：</strong></p>
+                    <ul>
+                        <li>实现简单，公平</li>
+                        <li>有利于长作业，不利于短作业</li>
+                        <li>可能导致"护航效应"（短作业等待长作业完成）</li>
+                        <li>平均等待时间可能较长</li>
+                    </ul>
+                `
+            },
+            sjf: {
+                name: "短作业优先 (SJF)",
+                description: `
+                    <p><strong>短作业优先 (SJF) 调度算法：</strong></p>
+                    <p>从后备队列中选择估计运行时间最短的作业，或从就绪队列中选择估计运行时间最短的进程。</p>
+                    <p><strong>特点：</strong></p>
+                    <ul>
+                        <li>可获得最短的平均等待时间（理论最优）</li>
+                        <li>对长作业不利，可能导致"饥饿"现象</li>
+                        <li>需要预知作业/进程的运行时间</li>
+                        <li>分抢占式和非抢占式两种模式</li>
+                    </ul>
+                `
+            },
+            priority: {
+                name: "优先级调度 (PR)",
+                description: `
+                    <p><strong>优先级调度 (PR) 算法：</strong></p>
+                    <p>基于作业/进程的紧迫程度，由外部赋予相应的优先级，调度程序根据优先级进行调度。</p>
+                    <p><strong>特点：</strong></p>
+                    <ul>
+                        <li>考虑进程的紧迫程度</li>
+                        <li>灵活，可模拟其他算法</li>
+                        <li>可能导致低优先级进程"饥饿"</li>
+                        <li>可采用静态优先级或动态优先级</li>
+                        <li>分抢占式和非抢占式两种模式</li>
+                    </ul>
+                `
+            },
+            rr: {
+                name: "时间片轮转 (RR)",
+                description: `
+                    <p><strong>时间片轮转 (RR) 调度算法：</strong></p>
+                    <p>专为分时系统设计，为每个进程分配一个时间片的CPU时间，时间片用完后插入就绪队列末尾，循环执行。</p>
+                    <p><strong>特点：</strong></p>
+                    <ul>
+                        <li>公平，响应时间快</li>
+                        <li>适合交互式系统</li>
+                        <li>时间片大小影响系统性能</li>
+                        <li>上下文切换开销较大</li>
+                    </ul>
+                `
+            },
+            hrrn: {
+                name: "高响应比优先 (HRRN)",
+                description: `
+                    <p><strong>高响应比优先 (HRRN) 调度算法：</strong></p>
+                    <p>既考虑作业的等待时间，又考虑作业的运行时间，响应比高的作业优先调度。</p>
+                    <p><strong>特点：</strong></p>
+                    <ul>
+                        <li>响应比 = (等待时间 + 运行时间) / 运行时间</li>
+                        <li>兼顾了短作业和长作业</li>
+                        <li>不会导致"饥饿"现象</li>
+                        <li>每次调度前需要计算响应比，增加系统开销</li>
+                    </ul>
+                `
+            }
+        };
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners();
+            resetSimulation();
+            updateAlgorithmDescription();
+        });
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 算法选择按钮
+            document.querySelectorAll('.algo-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.algo-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    currentAlgorithm = this.getAttribute('data-algo');
+                    document.getElementById('current-algo').textContent = algorithmDescriptions[currentAlgorithm].name;
+                    
+                    // 显示/隐藏RR算法的时间片控制
+                    const rrControl = document.getElementById('rr-control');
+                    if (currentAlgorithm === 'rr') {
+                        rrControl.style.display = 'block';
+                    } else {
+                        rrControl.style.display = 'none';
+                    }
+                    
+                    updateAlgorithmDescription();
+                    resetSimulation();
+                });
+            });
+            
+            // 开始动画按钮
+            document.getElementById('start-btn').addEventListener('click', function() {
+                if (isAnimating) {
+                    stopAnimation();
+                    this.textContent = '开始动画';
+                } else {
+                    startAnimation();
+                    this.textContent = '暂停动画';
+                }
+            });
+            
+            // 重置按钮
+            document.getElementById('reset-btn').addEventListener('click', resetSimulation);
+            
+            // 单步执行按钮
+            document.getElementById('step-btn').addEventListener('click', stepAnimation);
+            
+            // 时间片输入
+            document.getElementById('time-slice').addEventListener('change', function() {
+                timeSlice = parseInt(this.value);
+            });
+        }
+        
+        // 更新算法描述
+        function updateAlgorithmDescription() {
+            const algoInfo = algorithmDescriptions[currentAlgorithm];
+            document.getElementById('algo-description').innerHTML = algoInfo.description;
+        }
+        
+        // 重置模拟
+        function resetSimulation() {
+            stopAnimation();
+            document.getElementById('start-btn').textContent = '开始动画';
+            
+            // 重置变量
+            time = 0;
+            processes = [];
+            completedProcesses = [];
+            ganttData = [];
+            readyQueue = [];
+            runningProcess = null;
+            nextProcessId = 1;
+            
+            // 解析输入的进程
+            const processInput = document.getElementById('processes').value;
+            const lines = processInput.trim().split('\n');
+            
+            lines.forEach((line, index) => {
+                const parts = line.split(',').map(part => part.trim());
+                if (parts.length >= 3) {
+                    const name = parts[0] || `P${index+1}`;
+                    const arrivalTime = parseInt(parts[1]) || 0;
+                    const burstTime = parseInt(parts[2]) || 1;
+                    const priority = parseInt(parts[3]) || 1;
+                    
+                    processes.push({
+                        id: nextProcessId++,
+                        name: name,
+                        arrivalTime: arrivalTime,
+                        burstTime: burstTime,
+                        remainingTime: burstTime,
+                        priority: priority,
+                        waitingTime: 0,
+                        turnaroundTime: 0,
+                        responseTime: -1, // -1表示尚未首次获得CPU
+                        completed: false
+                    });
+                }
+            });
+            
+            // 按到达时间排序
+            processes.sort((a, b) => a.arrivalTime - b.arrivalTime);
+            
+            // 更新显示
+            updateDisplay();
+        }
+        
+        // 开始动画
+        function startAnimation() {
+            if (isAnimating) return;
+            
+            isAnimating = true;
+            animationInterval = setInterval(() => {
+                stepAnimation();
+            }, animationSpeed);
+        }
+        
+        // 停止动画
+        function stopAnimation() {
+            if (!isAnimating) return;
+            
+            isAnimating = false;
+            clearInterval(animationInterval);
+            animationInterval = null;
+        }
+        
+        // 单步执行
+        function stepAnimation() {
+            // 如果有进程正在运行，减少其剩余时间
+            if (runningProcess) {
+                runningProcess.remainingTime--;
+                
+                // 记录甘特图数据
+                if (ganttData.length === 0 || ganttData[ganttData.length-1].processId !== runningProcess.id) {
+                    ganttData.push({
+                        processId: runningProcess.id,
+                        processName: runningProcess.name,
+                        startTime: time,
+                        endTime: time + 1
+                    });
+                } else {
+                    ganttData[ganttData.length-1].endTime = time + 1;
+                }
+                
+                // 检查进程是否完成
+                if (runningProcess.remainingTime === 0) {
+                    runningProcess.completed = true;
+                    runningProcess.turnaroundTime = time + 1 - runningProcess.arrivalTime;
+                    completedProcesses.push(runningProcess);
+                    runningProcess = null;
+                }
+            }
+            
+            // 时间前进
+            time++;
+            
+            // 将到达的进程加入就绪队列
+            processes.forEach(process => {
+                if (!process.completed && process.arrivalTime <= time && 
+                    !readyQueue.find(p => p.id === process.id) && 
+                    process !== runningProcess) {
+                    
+                    // 如果是首次加入就绪队列，设置响应时间
+                    if (process.responseTime === -1) {
+                        process.responseTime = time - process.arrivalTime;
+                    }
+                    
+                    readyQueue.push(process);
+                }
+            });
+            
+            // 计算每个进程的等待时间（在就绪队列中的时间）
+            readyQueue.forEach(process => {
+                process.waitingTime++;
+            });
+            
+            // 如果没有进程在运行，选择下一个进程
+            if (!runningProcess && readyQueue.length > 0) {
+                runningProcess = selectNextProcess();
+                
+                // 从就绪队列中移除
+                const index = readyQueue.findIndex(p => p.id === runningProcess.id);
+                if (index !== -1) {
+                    readyQueue.splice(index, 1);
+                }
+            }
+            
+            // 检查是否所有进程都已完成
+            const allCompleted = processes.every(p => p.completed);
+            if (allCompleted) {
+                stopAnimation();
+                document.getElementById('start-btn').textContent = '开始动画';
+            }
+            
+            // 更新显示
+            updateDisplay();
+        }
+        
+        // 根据当前算法选择下一个进程
+        function selectNextProcess() {
+            if (readyQueue.length === 0) return null;
+            
+            let selectedProcess = null;
+            
+            switch(currentAlgorithm) {
+                case 'fcfs':
+                    // 先来先服务：选择到达时间最早的
+                    selectedProcess = readyQueue.reduce((earliest, current) => {
+                        return earliest.arrivalTime < current.arrivalTime ? earliest : current;
+                    });
+                    break;
+                    
+                case 'sjf':
+                    // 短作业优先：选择剩余时间最短的
+                    selectedProcess = readyQueue.reduce((shortest, current) => {
+                        return shortest.remainingTime < current.remainingTime ? shortest : current;
+                    });
+                    break;
+                    
+                case 'priority':
+                    // 优先级调度：选择优先级最高的（数字越小优先级越高）
+                    selectedProcess = readyQueue.reduce((highest, current) => {
+                        return highest.priority < current.priority ? highest : current;
+                    });
+                    break;
+                    
+                case 'rr':
+                    // 时间片轮转：选择就绪队列中的第一个
+                    selectedProcess = readyQueue[0];
+                    break;
+                    
+                case 'hrrn':
+                    // 高响应比优先：计算响应比 = (等待时间 + 运行时间) / 运行时间
+                    // 选择响应比最高的
+                    selectedProcess = readyQueue.reduce((highest, current) => {
+                        const highestRatio = (highest.waitingTime + highest.burstTime) / highest.burstTime;
+                        const currentRatio = (current.waitingTime + current.burstTime) / current.burstTime;
+                        return highestRatio > currentRatio ? highest : current;
+                    });
+                    break;
+                    
+                default:
+                    selectedProcess = readyQueue[0];
+            }
+            
+            return selectedProcess;
+        }
+        
+        // 更新显示
+        function updateDisplay() {
+            // 更新当前时间
+            document.getElementById('current-time-label').textContent = `时间: ${time}`;
+            const ganttChart = document.getElementById('gantt-chart');
+            const chartWidth = ganttChart.offsetWidth;
+            const maxTime = Math.max(20, time + 5); // 至少显示20个时间单位
+            
+            // 移动时间指针
+            const timePointer = document.getElementById('current-time');
+            timePointer.style.left = `${(time / maxTime) * 100}%`;
+            
+            // 更新就绪队列显示
+            const readyQueueDiv = document.getElementById('ready-queue');
+            readyQueueDiv.innerHTML = '';
+            
+            if (readyQueue.length > 0) {
+                const queueTitle = document.createElement('div');
+                queueTitle.textContent = '就绪队列:';
+                queueTitle.style.cssText = 'width:100%; font-weight:bold; margin-bottom:10px; color:#2c3e50;';
+                readyQueueDiv.appendChild(queueTitle);
+                
+                readyQueue.forEach(process => {
+                    const processBox = document.createElement('div');
+                    processBox.className = 'process-box';
+                    
+                    const processName = document.createElement('div');
+                    processName.className = 'process-name';
+                    processName.textContent = process.name;
+                    
+                    const processDetail = document.createElement('div');
+                    processDetail.className = 'process-detail';
+                    
+                    let detailText = `剩余:${process.remainingTime}`;
+                    if (currentAlgorithm === 'priority') {
+                        detailText += ` 优先级:${process.priority}`;
+                    }
+                    
+                    processDetail.textContent = detailText;
+                    
+                    processBox.appendChild(processName);
+                    processBox.appendChild(processDetail);
+                    
+                    // 根据进程设置不同颜色
+                    const hue = (process.id * 137) % 360; // 使用黄金角近似值分配颜色
+                    processBox.style.backgroundColor = `hsl(${hue}, 70%, 65%)`;
+                    
+                    readyQueueDiv.appendChild(processBox);
+                });
+            } else {
+                readyQueueDiv.innerHTML = '<div style="color:#7f8c8d; text-align:center; padding:20px;">就绪队列为空</div>';
+            }
+            
+            // 更新运行进程显示
+            const runningProcessDiv = document.getElementById('running-process');
+            if (runningProcess) {
+                const hue = (runningProcess.id * 137) % 360;
+                runningProcessDiv.innerHTML = `
+                    <div style="text-align:center; margin-bottom:15px;">
+                        <div style="font-weight:bold; color:#2c3e50; margin-bottom:5px;">当前运行进程</div>
+                        <div class="process-box" style="display:inline-block; background-color:hsl(${hue}, 70%, 65%);">
+                            <div class="process-name">${runningProcess.name}</div>
+                            <div class="process-detail">剩余时间: ${runningProcess.remainingTime}</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                runningProcessDiv.innerHTML = `
+                    <div style="text-align:center; margin-bottom:15px; color:#7f8c8d;">
+                        <div style="font-weight:bold; margin-bottom:5px;">当前运行进程</div>
+                        <div>无</div>
+                    </div>
+                `;
+            }
+            
+            // 更新甘特图
+            const ganttDiv = document.getElementById('gantt-chart');
+            // 清除旧的甘特条（除了时间指针）
+            const bars = ganttDiv.querySelectorAll('.process-bar');
+            bars.forEach(bar => {
+                if (!bar.classList.contains('current-time')) {
+                    bar.remove();
+                }
+            });
+            
+            // 添加新的甘特条
+            ganttData.forEach(item => {
+                const bar = document.createElement('div');
+                bar.className = 'process-bar';
+                bar.textContent = `${item.processName}`;
+                
+                // 计算位置和宽度
+                const startPercent = (item.startTime / maxTime) * 100;
+                const widthPercent = ((item.endTime - item.startTime) / maxTime) * 100;
+                
+                bar.style.left = `${startPercent}%`;
+                bar.style.width = `${widthPercent}%`;
+                
+                // 使用与进程相同的颜色
+                const process = processes.find(p => p.id === item.processId);
+                const hue = process ? (process.id * 137) % 360 : 200;
+                bar.style.backgroundColor = `hsl(${hue}, 70%, 65%)`;
+                
+                ganttDiv.appendChild(bar);
+            });
+            
+            // 更新时间轴
+            const timeAxis = document.getElementById('time-axis');
+            timeAxis.innerHTML = '';
+            
+            for (let t = 0; t <= maxTime; t += Math.ceil(maxTime / 20)) {
+                const timeMarker = document.createElement('div');
+                timeMarker.textContent = t;
+                timeAxis.appendChild(timeMarker);
+            }
+            
+            // 更新统计数据
+            const statsDiv = document.getElementById('stats');
+            
+            // 计算平均等待时间、平均周转时间、平均响应时间
+            let totalWaitingTime = 0;
+            let totalTurnaroundTime = 0;
+            let totalResponseTime = 0;
+            let completedCount = completedProcesses.length;
+            
+            completedProcesses.forEach(process => {
+                totalWaitingTime += process.waitingTime;
+                totalTurnaroundTime += process.turnaroundTime;
+                totalResponseTime += process.responseTime;
+            });
+            
+            // 加上正在运行和就绪队列中的进程（部分统计）
+            if (runningProcess) {
+                totalWaitingTime += runningProcess.waitingTime;
+                // 周转时间和响应时间在完成时计算
+            }
+            
+            readyQueue.forEach(process => {
+                totalWaitingTime += process.waitingTime;
+            });
+            
+            const avgWaitingTime = completedCount > 0 ? (totalWaitingTime / completedCount).toFixed(2) : '0.00';
+            const avgTurnaroundTime = completedCount > 0 ? (totalTurnaroundTime / completedCount).toFixed(2) : '0.00';
+            const avgResponseTime = completedCount > 0 ? (totalResponseTime / completedCount).toFixed(2) : '0.00';
+            
+            statsDiv.innerHTML = `
+                <div class="stat-box">
+                    <div class="stat-value">${time}</div>
+                    <div class="stat-label">当前时间</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">${completedCount} / ${processes.length}</div>
+                    <div class="stat-label">已完成进程</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">${avgWaitingTime}</div>
+                    <div class="stat-label">平均等待时间</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">${avgTurnaroundTime}</div>
+                    <div class="stat-label">平均周转时间</div>
+                </div>
+            `;
+            
+            if (currentAlgorithm === 'rr') {
+                statsDiv.innerHTML += `
+                    <div class="stat-box">
+                        <div class="stat-value">${timeSlice}</div>
+                        <div class="stat-label">时间片大小</div>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

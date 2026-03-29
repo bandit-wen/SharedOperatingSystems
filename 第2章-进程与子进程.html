@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>操作系统：子进程创建函数fork( ) 逐步分解</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Inter', 'Segoe UI', Roboto, system-ui, sans-serif;
+        }
+        body {
+            background: #e7edf5;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .workspace {
+            max-width: 1300px;
+            width: 100%;
+            background: white;
+            border-radius: 2.5rem;
+            box-shadow: 0 25px 50px -10px #1e3f5f70;
+            overflow: hidden;
+            padding: 2rem 2rem 2rem 2rem;
+        }
+        h1 {
+            margin: 0 0 0.2rem 0;
+            font-weight: 600;
+            font-size: 2.2rem;
+            color: #0b2b4f;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .subtitle {
+            color: #2c577a;
+            font-size: 1.1rem;
+            margin-bottom: 1.8rem;
+            border-left: 6px solid #1e7ea5;
+            padding-left: 1.2rem;
+            background: #e4effa60;
+            border-radius: 0 1.5rem 1.5rem 0;
+        }
+        .canvas-container {
+            background: #f5faff;
+            border-radius: 32px;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.02), 0 12px 24px -12px #264d80;
+            padding: 20px 0 10px 0;
+            display: flex;
+            justify-content: center;
+            border: 1px solid #b9cde4;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            background: #ffffff;
+            border-radius: 24px;
+            cursor: default;
+        }
+        .control-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 20px;
+            margin: 22px 0 25px 0;
+        }
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            background: white;
+            border: 2px solid #1f6390;
+            color: #1f6390;
+            font-weight: 600;
+            font-size: 1.2rem;
+            padding: 12px 32px;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: 0.15s;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.02);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .btn-primary {
+            background: #1f6390;
+            color: white;
+            border: 2px solid #1f6390;
+            box-shadow: 0 12px 20px -14px #1f6390;
+        }
+        .btn-primary:hover:not(:disabled) {
+            background: #134a70;
+            border-color: #134a70;
+            transform: scale(1.02);
+        }
+        .btn-secondary:hover:not(:disabled) {
+            background: #e0ecf9;
+            border-color: #134a70;
+        }
+        .btn:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            border-color: #7b98b3;
+            color: #5d7b99;
+        }
+        .step-indicator {
+            background: #edf4fd;
+            border-radius: 50px;
+            padding: 0.3rem 1.8rem 0.3rem 1.5rem;
+            font-weight: 600;
+            font-size: 1.3rem;
+            color: #00335c;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border: 1px solid #acc6e0;
+        }
+        .step-badge {
+            background: #2f7fb5;
+            color: white;
+            border-radius: 30px;
+            padding: 5px 18px;
+            font-size: 1rem;
+        }
+        .steps-panel {
+            background: #f1f7fd;
+            border-radius: 32px;
+            padding: 1.6rem 2rem;
+            border: 1px solid #bed3e8;
+            margin-top: 10px;
+        }
+        .steps-title {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            margin-bottom: 1.2rem;
+        }
+        .steps-title h3 {
+            margin: 0;
+            font-size: 1.7rem;
+            font-weight: 550;
+            color: #0b2b4f;
+        }
+        .steps-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px 25px;
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .steps-grid li {
+            flex: 1 1 calc(50% - 30px);
+            min-width: 240px;
+            background: #ffffffdb;
+            backdrop-filter: blur(4px);
+            padding: 12px 22px;
+            border-radius: 50px;
+            font-size: 1.05rem;
+            border-left: 8px solid #2f7fb5;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.02);
+            color: #102b40;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .steps-grid li span.step-num {
+            background: #2f7fb5;
+            color: white;
+            width: 32px;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 30px;
+            font-weight: 700;
+        }
+        .steps-grid li.active-step {
+            background: #fff3cf;
+            border-left-color: #f3b33d;
+            box-shadow: 0 0 0 3px #f9d584;
+        }
+        .legend {
+            display: flex;
+            gap: 35px;
+            flex-wrap: wrap;
+            margin: 20px 0 5px 0;
+            color: #1c4d7a;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .kernel-badge {
+            background: #2b4f6e;
+            color: white;
+            border-radius: 20px;
+            padding: 2px 18px;
+        }
+        .footer-note {
+            margin-top: 28px;
+            color: #446688;
+            font-size: 1rem;
+            border-top: 1px dashed #a6c0da;
+            padding-top: 16px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="workspace">
+    <h1>
+        <span>🧬 子进程创建函数fork( ) 逐步分解</span>
+        <span class="kernel-badge">内核空间</span>
+    </h1>
+    <div class="subtitle">每个步骤都对应 PCB 操作、队列变化与返回值 —— 父子进程从此分流</div>
+
+    <!-- 画布区 -->
+    <div class="canvas-container">
+        <canvas id="forkCanvas" width="1100" height="420"></canvas>
+    </div>
+
+    <!-- 控制栏 -->
+    <div class="control-bar">
+        <div class="btn-group">
+            <button class="btn btn-primary" id="startForkBtn" title="开始一次新的 fork 演示">🔀 开始 fork</button>
+            <button class="btn btn-secondary" id="nextStepBtn" title="执行下一步">⏯ 下一步</button>
+            <button class="btn btn-secondary" id="resetBtn">⟲ 重置所有</button>
+        </div>
+        <div class="step-indicator">
+            <span>📌 当前步骤</span>
+            <span class="step-badge" id="currentStepDisplay">0/7</span>
+        </div>
+    </div>
+
+    <!-- 分解步骤列表 (与画布同步高亮) -->
+    <div class="steps-panel">
+        <div class="steps-title">
+            <h3>📋 fork() 六步内核动作 (细化版)</h3>
+            <span style="background: #2a6291; color: white; padding: 5px 20px; border-radius: 40px;">具体语句分解</span>
+        </div>
+        <ul class="steps-grid" id="stepDetailList">
+            <li id="step1"><span class="step-num">1</span> 用户进程调用 <code>fork()</code> </li>
+            <li id="step2"><span class="step-num">2</span> 内核分配【新的】进程控制块 <strong>PCB</strong> </li>
+            <li id="step3"><span class="step-num">3</span> 复制父进程上下文 (代码、数据、堆栈、文件描述符等) 到新PCB</li>
+            <li id="step4"><span class="step-num">4</span> 为新PCB分配唯一 PID (如 <span id="stepPidShow">----</span>)</li>
+            <li id="step5"><span class="step-num">5</span> 将子进程加入<strong>就绪队列</strong>，等待调度</li>
+            <li id="step6"><span class="step-num">6</span> 从内核返回：父进程收到子PID，子进程收到 0</li>
+        </ul>
+        <div style="margin-top: 15px; background: #dae6f2; border-radius: 28px; padding: 10px 22px;">
+            <span style="font-weight: 600;">🎯 为什么返回值不同？</span> 
+            <code style="background: #ffffffb0; padding: 4px 16px; border-radius: 40px; margin-left: 10px;">if (pid == 0) 子进程 else 父进程</code>
+        </div>
+    </div>
+
+    <!-- 图例说明 -->
+    <div class="legend">
+        <div class="legend-item"><span style="background:#c3d9f0; width:20px;height:20px;border-radius:8px;border:2px solid #1f5a88;"></span> 进程PCB</div>
+        <div class="legend-item"><span style="background:#ffe4a1; width:20px;height:20px;border-radius:8px;border:2px solid #cf8b23;"></span> 新分配/复制中</div>
+        <div class="legend-item">⏎ 返回值标注在卡片上</div>
+        <div class="legend-item">📤 就绪队列 (右侧)</div>
+    </div>
+    <div class="footer-note">
+        ✅ 点击【开始fork】进入逐步演示，然后使用【下一步】观察每个内核步骤的视觉变化。
+    </div>
+</div>
+
+<script>
+(function() {
+    // ------ 固定参数 ------
+    const PARENT_PID = 1000;
+    const canvas = document.getElementById('forkCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // ------ 全局状态 ------
+    let parent = { pid: PARENT_PID, ret: '?' };               // 父进程返回值初始未知
+    let children = [];                                         // 已完全创建的子进程 { pid, ret: 0 }
+    let nextPid = 1001;                                        // 下一个可用PID
+
+    // fork 逐步演示状态
+    let forkActive = false;             // 是否正在演示fork过程中
+    let step = 0;                       // 1-6 对应六个步骤, 7表示完成(但还未加入children)
+    let newPid = null;                  // 本次fork分配的新PID
+    let tempChild = null;                // 用于演示的子进程临时对象 { pid, ret: '?' }
+
+    // 就绪队列中进程的表示 (简化: 显示父进程 + 所有已创建的子进程)
+    // 就绪队列在画布上绘制
+
+    // UI 元素
+    const startBtn = document.getElementById('startForkBtn');
+    const nextBtn = document.getElementById('nextStepBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const currentStepSpan = document.getElementById('currentStepDisplay');
+    const stepPidSpan = document.getElementById('stepPidShow');
+    const stepItems = {
+        1: document.getElementById('step1'),
+        2: document.getElementById('step2'),
+        3: document.getElementById('step3'),
+        4: document.getElementById('step4'),
+        5: document.getElementById('step5'),
+        6: document.getElementById('step6')
+    };
+
+    // 辅助函数：清除所有步骤高亮
+    function clearStepHighlights() {
+        for (let i = 1; i <= 6; i++) {
+            stepItems[i].classList.remove('active-step');
+        }
+    }
+
+    // 更新步骤高亮及显示
+    function setStep(newStep) {
+        step = newStep;
+        clearStepHighlights();
+        if (step >= 1 && step <= 6) {
+            stepItems[step].classList.add('active-step');
+        }
+        currentStepSpan.innerText = step + '/6';   // 步骤显示1~6
+        // 第4步时显示新PID
+        if (step === 4 && newPid) {
+            stepPidSpan.innerText = newPid;
+        } else if (step < 4) {
+            stepPidSpan.innerText = '----';
+        }
+    }
+
+    // 重置所有 (清空所有子进程、终止演示)
+    function resetAll() {
+        forkActive = false;
+        step = 0;
+        children = [];
+        nextPid = 1001;
+        newPid = null;
+        tempChild = null;
+        parent.ret = '?';
+        clearStepHighlights();
+        currentStepSpan.innerText = '0/6';
+        stepPidSpan.innerText = '----';
+        // 启用/禁用按钮
+        startBtn.disabled = false;
+        nextBtn.disabled = true;
+        drawScene();
+    }
+
+   function clearShadow() {
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+}
+
+    // 开始新的fork演示
+    function startFork() {
+        if (forkActive) return; // 已经 actived
+        // 检查子进程数量限制 (最多5个，保持画布清晰)
+        if (children.length >= 5) {
+            alert('最多同时展示5个子进程，以便观察。请先重置。');
+            return;
+        }
+        forkActive = true;
+        newPid = nextPid;                // 预定新PID
+        tempChild = { pid: newPid, ret: '?' };   // 临时子进程对象，尚未正式加入
+        // 初始化步骤到1
+        setStep(1);
+        // 调整按钮状态
+        startBtn.disabled = true;
+        nextBtn.disabled = false;
+        drawScene();
+    }
+
+    // 下一步
+    function nextStep() {
+        if (!forkActive) return;
+        if (step < 6) {
+            // 增加步骤
+            let next = step + 1;
+            // 在步骤转换时可能需要更新临时子进程的内容
+            if (next === 2) {
+                // 步骤2: 分配新PCB -> tempChild 保持 pid 未知(但实际已经分配了结构，只是还没填充PID)，我们用虚线框表示
+                // 画图时体现
+            }
+            if (next === 3) {
+                // 步骤3: 复制上下文 -> 可以添加一个复制标记，但tempChild内容不变
+            }
+            if (next === 4) {
+                // 步骤4: 分配PID -> tempChild.pid 此时才展示（之前是占位）
+                // 已经存在 newPid，步骤4显示
+            }
+            if (next === 5) {
+                // 步骤5: 加入就绪队列 (在画图时把tempChild放进就绪队列区域)
+            }
+            if (next === 6) {
+                // 步骤6: 设置返回值
+                tempChild.ret = 0;
+                parent.ret = newPid;      // 父进程返回值 = 子PID
+            }
+            setStep(next);
+            drawScene();
+        } 
+        if (step === 6) {
+            // 已经到达步骤6，此时再点击下一步表示完成fork，将子进程永久加入
+            // 完成fork：把tempChild加入children
+            if (tempChild) {
+                children.push({ pid: newPid, ret: 0 });  // 注意返回值0
+                // 更新nextPid
+                nextPid++;
+            }
+            // 清理临时演示数据，退出forkActive
+            forkActive = false;
+            tempChild = null;
+            newPid = null;
+            parent.ret = '?';   // 父进程返回值重置（因为演示结束，下一个fork会重新展示）
+            setStep(0);          // 无高亮
+            startBtn.disabled = false;
+            nextBtn.disabled = true;
+            drawScene();
+        }
+    }
+
+    // ---------- 绘图 ----------
+    function drawScene() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // 固定坐标
+        const parentX = 200, parentY = 150;
+        const kernelX = 500, kernelY = 80;
+        const queueX = 800, queueY = 150;
+        const childBaseX = 200, childBaseY = 300;  // 子进程起始偏移，多个子进程会向右排列
+
+        // 1. 绘制内核区域 (抽象)
+        ctx.fillStyle = '#f2f6fc';
+        ctx.shadowColor = '#a0b9d4';
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 3;
+        ctx.beginPath();
+        ctx.roundRect(kernelX - 100, kernelY - 30, 200, 90, 20);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#3d618a';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        ctx.fillStyle = '#1b3b58';
+        ctx.font = 'bold 16px "Segoe UI", monospace';
+        ctx.textAlign = 'center';
+	clearShadow() ;
+        ctx.fillText('⛭ 内核空间', kernelX, kernelY + 5);
+        ctx.font = '14px monospace';
+        ctx.fillStyle = '#2f6396';
+	clearShadow() ;
+        ctx.fillText('sys_fork()', kernelX, kernelY + 35);
+
+        // 2. 绘制就绪队列 (右侧)
+        ctx.fillStyle = '#e5edf8';
+        ctx.shadowBlur = 0;
+        ctx.beginPath();
+        ctx.roundRect(queueX - 120, queueY - 50, 240, 140, 24);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#3d618a';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        ctx.fillStyle = '#1d3e60';
+        ctx.font = 'bold 18px "Segoe UI"';
+	clearShadow() ;
+        ctx.fillText('就绪队列', queueX, queueY - 20);
+        
+        // 绘制队列中的进程卡片：父进程 + 所有已创建的子进程 (children)
+        let queueSlots = [parent, ...children];
+        // 如果处于步骤5或6，且tempChild存在，也要加入队列展示 (表示已入队)
+        if (forkActive && (step >= 5) && tempChild) {
+            queueSlots = [...queueSlots, tempChild];
+        }
+        // 绘制队列内小卡片 (最多平铺5个)
+        const slotWidth = 70;
+        const slotHeight = 60;
+        const startSlotX = queueX - 90;
+        for (let i = 0; i < queueSlots.length; i++) {
+            if (i >= 5) break; // 最多显示5个
+            const proc = queueSlots[i];
+            const slotX = startSlotX + i * 80;
+            const slotY = queueY - 5;
+            // 卡片背景
+            ctx.fillStyle = (proc === tempChild && step >=5) ? '#fff2c5' : '#fefefe';
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.roundRect(slotX, slotY, slotWidth, slotHeight, 12);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#2f6396';
+            ctx.lineWidth = 1.8;
+            ctx.stroke();
+            ctx.fillStyle = '#0b2b4f';
+            ctx.font = 'bold 12px monospace';
+            ctx.textAlign = 'center';
+	    clearShadow() ;
+            ctx.fillText(`PID:${proc.pid}`, slotX + slotWidth/2, slotY + 18);
+            ctx.font = '11px monospace';
+            ctx.fillStyle = '#a55d0d';
+            // 返回值显示
+            let retText = (proc.ret !== undefined && proc.ret !== '?') ? `ret=${proc.ret}` : 'ret=?';
+            if (proc === parent && parent.ret !== '?') retText = `ret=${parent.ret}`;
+	    clearShadow() ;
+            ctx.fillText(retText, slotX + slotWidth/2, slotY + 42);
+        }
+
+        // 3. 绘制父进程 (左边大卡片)
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#d4e3fd';
+        ctx.beginPath();
+        ctx.roundRect(parentX - 100, parentY - 45, 200, 90, 24);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#1f5a88';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.fillStyle = '#0b2b4f';
+        ctx.font = 'bold 16px "Segoe UI"';
+	clearShadow() ;
+        ctx.fillText('父进程', parentX, parentY - 18);
+        ctx.font = 'bold 15px monospace';
+        clearShadow() ;
+        ctx.fillText(`PID: ${parent.pid}`, parentX, parentY + 10);
+        ctx.font = '14px monospace';
+        ctx.fillStyle = (parent.ret !== '?') ? '#b3570c' : '#737373';
+	clearShadow() ;
+        ctx.fillText(`返回值: ${parent.ret}`, parentX, parentY + 35);
+
+        // 4. 绘制子进程区域 (演示中或已存在的子进程)
+        // 先绘制已创建的子进程 (正式children)
+        for (let i = 0; i < children.length; i++) {
+            const child = children[i];
+            const x = childBaseX + i * 170;
+            const y = childBaseY;
+            ctx.fillStyle = '#e5f0fa';
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.roundRect(x - 80, y - 40, 160, 80, 20);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#2f6396';
+            ctx.lineWidth = 2.2;
+            ctx.stroke();
+            ctx.fillStyle = '#133653';
+            ctx.font = 'bold 15px "Segoe UI"';
+	    clearShadow() ;
+            ctx.fillText('子进程', x, y - 18);
+            ctx.font = 'bold 14px monospace';
+	    clearShadow() ;
+            ctx.fillText(`PID: ${child.pid}`, x, y + 8);
+            ctx.font = '13px monospace';
+            ctx.fillStyle = '#b45f06';
+	    clearShadow() ;
+            ctx.fillText(`返回值: ${child.ret}`, x, y + 32);
+        }
+
+        // 绘制临时子进程 (根据步骤展示不同状态)
+        if (forkActive && tempChild) {
+            // 临时子进程放在已存在的子进程后面 (索引 = children.length)
+            const idx = children.length;
+            const x = childBaseX + idx * 170;
+            const y = childBaseY;
+
+            // 根据步骤绘制不同外观
+            if (step === 1) {
+                // 步骤1：只有父进程高亮，子进程还未出现 (但为了演示，不绘制)
+                // 但可以在父进程上加一个高亮圈
+                ctx.beginPath();
+                ctx.arc(parentX - 70, parentY - 30, 10, 0, 2*Math.PI);
+                ctx.fillStyle = '#f0c45a';
+                ctx.shadowBlur = 0;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            } 
+            else if (step === 2) {
+                // 步骤2：分配新PCB → 绘制一个虚线框，表示刚分配的空白PCB
+                ctx.setLineDash([6, 6]);
+                ctx.strokeStyle = '#cc7b2c';
+                ctx.lineWidth = 3;
+                ctx.fillStyle = '#fff7e6';
+                ctx.fillRect(x-80, y-40, 160, 80);
+                ctx.strokeRect(x-80, y-40, 160, 80);
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#a3621b';
+                ctx.font = 'bold 15px monospace';
+	        clearShadow() ;
+                ctx.fillText('新PCB', x, y-10);
+                ctx.font = '13px monospace';
+		clearShadow() ;
+                ctx.fillText('(未分配PID)', x, y+20);
+            }
+            else if (step === 3) {
+                // 步骤3：复制父进程上下文 → 显示从父进程指向子进程的箭头，子卡片内显示“复制中”
+                ctx.fillStyle = '#fdf4d9';
+                ctx.fillRect(x-80, y-40, 160, 80);
+                ctx.strokeStyle = '#d48c2c';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x-80, y-40, 160, 80);
+                // 箭头从父进程到子进程
+                ctx.beginPath();
+                ctx.moveTo(parentX + 30, parentY + 10);
+                ctx.lineTo(x - 50, y - 10);
+                ctx.strokeStyle = '#d48c2c';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+                // 箭头头部
+                ctx.fillStyle = '#d48c2c';
+                ctx.beginPath();
+                ctx.moveTo(x - 60, y - 16);
+                ctx.lineTo(x - 40, y - 10);
+                ctx.lineTo(x - 60, y - 4);
+                ctx.fill();
+                ctx.fillStyle = '#0b2b4f';
+                ctx.font = 'bold 15px monospace';
+		clearShadow() ;
+                ctx.fillText('复制', x-15, y-25);
+                ctx.font = '13px monospace';
+		clearShadow() ;
+                ctx.fillText('(代码/数据/堆栈)', x, y+20);
+            }
+            else if (step === 4) {
+                // 步骤4：分配PID → 卡片内显示PID (但返回值还是?)
+                ctx.fillStyle = '#f9edd2';
+                ctx.fillRect(x-80, y-40, 160, 80);
+                ctx.strokeStyle = '#1f6390';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x-80, y-40, 160, 80);
+                ctx.fillStyle = '#133653';
+                ctx.font = 'bold 15px "Segoe UI"';
+		clearShadow() ;
+                ctx.fillText('子进程', x, y-18);
+                ctx.font = 'bold 14px monospace';
+		clearShadow() ;
+                ctx.fillText(`PID: ${tempChild.pid}`, x, y+8);
+                ctx.font = '13px monospace';
+                ctx.fillStyle = '#888';
+		clearShadow() ;
+                ctx.fillText('返回值: ?', x, y+32);
+            }
+            else if (step >= 5) {
+                // 步骤5、6：已经加入就绪队列，卡片正常显示；步骤6会更新返回值
+                ctx.fillStyle = (step === 6) ? '#fff2c5' : '#f9edd2';
+                ctx.fillRect(x-80, y-40, 160, 80);
+                ctx.strokeStyle = (step === 6) ? '#d48c2c' : '#1f6390';
+                ctx.lineWidth = (step === 6) ? 3.5 : 2.5;
+                ctx.strokeRect(x-80, y-40, 160, 80);
+                ctx.fillStyle = '#133653';
+                ctx.font = 'bold 15px "Segoe UI"';
+		clearShadow() ;
+                ctx.fillText('子进程', x, y-18);
+                ctx.font = 'bold 14px monospace';
+		clearShadow() ;
+                ctx.fillText(`PID: ${tempChild.pid}`, x, y+8);
+                ctx.font = '13px monospace';
+                ctx.fillStyle = (step === 6) ? '#b45f06' : '#888';
+		clearShadow() ;
+                ctx.fillText(`返回值: ${tempChild.ret}`, x, y+32);
+                // 如果步骤==5，还可以在队列中看到它 (已绘制在队列)
+            }
+        }
+
+        // 额外标注：如果步骤为3，可以加文字说明“复制上下文”
+        if (forkActive && step === 3) {
+            ctx.fillStyle = '#a5620d';
+            ctx.font = 'bold 18px sans-serif';
+	    clearShadow() ;
+            ctx.fillText('⬅️ 复制父进程PCB内容', 460, 240);
+        }
+        // 如果步骤为6，强调返回值不同
+        if (forkActive && step === 6) {
+            ctx.fillStyle = '#a5620d';
+            ctx.font = 'bold 18px sans-serif';
+            ctx.fillText('✨ 父进程收到子PID, 子进程收到0', 400, 380);
+        }
+    }
+
+    // 事件绑定
+    startBtn.addEventListener('click', startFork);
+    nextBtn.addEventListener('click', nextStep);
+    resetBtn.addEventListener('click', resetAll);
+
+    // 初始绘制
+    resetAll();
+
+    // 辅助 roundRect
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+        if (w < 2 * r) r = w / 2;
+        if (h < 2 * r) r = h / 2;
+        this.moveTo(x + r, y);
+        this.lineTo(x + w - r, y);
+        this.quadraticCurveTo(x + w, y, x + w, y + r);
+        this.lineTo(x + w, y + h - r);
+        this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        this.lineTo(x + r, y + h);
+        this.quadraticCurveTo(x, y + h, x, y + h - r);
+        this.lineTo(x, y + r);
+        this.quadraticCurveTo(x, y, x + r, y);
+        return this;
+    };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>操作系统死锁演示：十字路口交通死锁 | 四车互不相让</title>
+    <style>
+        * {
+            user-select: none;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(145deg, #1a472a 0%, #0e2a1a 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', 'Roboto', 'Noto Sans', system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .demo-container {
+            background: #2b2b2b;
+            border-radius: 2.5rem;
+            padding: 1.5rem 2rem 2rem 2rem;
+            box-shadow: 0 25px 40px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border-radius: 1.2rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            background-color: #2e5e3b;
+            cursor: pointer;
+        }
+
+        .info-panel {
+            margin-top: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+        }
+
+        button {
+            background: #f4f6f9;
+            border: none;
+            font-size: 1.1rem;
+            font-weight: bold;
+            padding: 0.6rem 1.5rem;
+            border-radius: 3rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+            letter-spacing: 1px;
+        }
+
+        button#btn-start {
+            background: #2c7da0;
+            color: white;
+            border-bottom: 3px solid #1f5068;
+        }
+
+        button#btn-start:hover {
+            background: #1f6390;
+            transform: scale(0.97);
+        }
+
+        button#btn-reset {
+            background: #5e5e5e;
+            color: white;
+            border-bottom: 3px solid #3a3a3a;
+        }
+
+        button#btn-reset:hover {
+            background: #4a4a4a;
+            transform: scale(0.97);
+        }
+
+        .deadlock-status {
+            background: #1e1e2f;
+            padding: 0.5rem 1.2rem;
+            border-radius: 2rem;
+            font-weight: bold;
+            font-size: 1.2rem;
+            backdrop-filter: blur(4px);
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1), 0 5px 10px rgba(0,0,0,0.3);
+        }
+
+        .status-text {
+            color: #ffd966;
+            font-family: monospace;
+            letter-spacing: 1px;
+        }
+
+        .status-text span {
+            color: #ffaa66;
+            font-weight: 800;
+        }
+
+        .explanation {
+            background: #000000aa;
+            backdrop-filter: blur(12px);
+            border-radius: 1.2rem;
+            padding: 0.8rem 1.2rem;
+            margin-top: 0.8rem;
+            color: #eef4ff;
+            font-size: 0.85rem;
+            text-align: center;
+            border-left: 5px solid #ffaa44;
+            max-width: 550px;
+        }
+
+        .explanation strong {
+            color: #ffbb77;
+        }
+
+        .badge {
+            font-size: 0.75rem;
+            background: #3a2c1f;
+            display: inline-block;
+            border-radius: 20px;
+            padding: 0.2rem 0.6rem;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        @media (max-width: 700px) {
+            .demo-container {
+                padding: 1rem;
+            }
+            button {
+                padding: 0.4rem 1rem;
+                font-size: 0.9rem;
+            }
+            .deadlock-status {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<div>
+    <div class="demo-container">
+        <canvas id="roadCanvas" width="800" height="600" style="width:100%; height:auto; max-width:800px; aspect-ratio:800/600"></canvas>
+
+        <div class="info-panel">
+            <div class="button-group">
+                <button id="btn-start">🚦 开始模拟 (死锁) </button>
+                <button id="btn-reset">🔄 重置路口</button>
+            </div>
+            <div class="deadlock-status">
+                <span class="status-text">⚙️ 系统状态: <span id="deadlockFlag">正常行驶</span></span>
+            </div>
+        </div>
+        <div class="explanation">
+            💡 <strong>死锁现象 (Deadlock)</strong> &nbsp;|&nbsp; 四个方向车辆同时驶入十字路口，<br>
+            每个车辆占用了当前车道资源，并等待前方车道被释放 → <strong style="color:#ffaa66;">互相阻塞，永远无法通行</strong><br>
+            ➕ 类比OS: 进程占有资源并循环等待 → 系统僵持。
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(){
+        // ---------- canvas 元素 ----------
+        const canvas = document.getElementById('roadCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 路口中心坐标
+        const centerX = 400, centerY = 300;
+
+        // ---------- 车辆定义 ----------
+        // 为了方便动画: 每个车有起始坐标(左上角)，终点坐标(左上角)，当前坐标，宽高，方向标识，颜色
+        // 设计终点: 全部卡在路口核心区域附近，视觉交错，形成死锁姿态
+        // 东向西 (E->W) : 从右侧驶向中心偏左 (最终停在路口西侧等待区但实际占据车道)
+        // 西向东 (W->E) : 从左侧驶向中心偏右
+        // 南向北 (S->N) : 从下方驶向中心偏上
+        // 北向南 (N->S) : 从上方驶向中心偏下
+        
+        // 为了方便调试及精准停靠，终点坐标全部位于十字路口交织区域，互不相让
+        
+        const cars = [
+            { // 东向西 (E->W) 红色
+                id: 'car_E',
+                direction: 'E→W',
+                startX: 740, startY: 285,   // 起点右侧车道 (宽30高20)
+                endX: 395, endY: 285,        // 终点: 路口偏左，卡在西向车道前
+                width: 30, height: 20,
+                color: '#E34234',
+                currentX: 740, currentY: 285,
+                reached: false,
+                label: '🚗 东'
+            },
+            { // 西向东 (W->E) 蓝色
+                id: 'car_W',
+                direction: 'W→E',
+                startX: 30, startY: 285,
+                endX: 375, endY: 285,
+                width: 30, height: 20,
+                color: '#3A86FF',
+                currentX: 30, currentY: 285,
+                reached: false,
+                label: '🚙 西'
+            },
+            { // 北向南 (N->S) 绿色
+                id: 'car_N',
+                direction: 'N→S',
+                startX: 390, startY: 35,
+                endX: 390, endY: 275,      // 终点卡在路口中央偏南
+                width: 20, height: 30,
+                color: '#2E8B57',
+                currentX: 390, currentY: 35,
+                reached: false,
+                label: '🚕 北'
+            },
+            { // 南向北 (S->N) 橙色
+                id: 'car_S',
+                direction: 'S→N',
+                startX: 390, startY: 535,
+                endX: 390, endY: 295,       // 终点卡在路口中央偏北
+                width: 20, height: 30,
+                color: '#FF9F1C',
+                currentX: 390, currentY: 535,
+                reached: false,
+                label: '🚌 南'
+            }
+        ];
+
+        // 动画控制变量
+        let animationId = null;
+        let isAnimating = false;
+        let deadlockActive = false;     // 死锁是否已经触发显示
+        
+        // 速度 (像素/帧) 统一速度，让所有车逐步向终点移动，形成渐进阻塞
+        const SPEED = 2.3;  
+
+        // 辅助函数: 检查两点之间距离(或移动至终点)
+        function moveTowards(current, target, step) {
+            if (Math.abs(target - current) <= step) {
+                return target;
+            }
+            return current + (target > current ? step : -step);
+        }
+
+        // 更新所有车辆位置 (逐帧移动)
+        function updatePositions() {
+            let allReached = true;
+            
+            for (let car of cars) {
+                if (car.reached) {
+                    // 已经到达终点，保持原位
+                    allReached = allReached && true;
+                    continue;
+                }
+                
+                // 未到达: 分别计算X和Y方向的移动
+                let newX = car.currentX;
+                let newY = car.currentY;
+                
+                // 水平方向移动
+                if (car.currentX !== car.endX) {
+                    newX = moveTowards(car.currentX, car.endX, SPEED);
+                }
+                // 垂直方向移动
+                if (car.currentY !== car.endY) {
+                    newY = moveTowards(car.currentY, car.endY, SPEED);
+                }
+                
+                car.currentX = newX;
+                car.currentY = newY;
+                
+                // 判断是否精确抵达终点 (允许浮点误差)
+                const dx = Math.abs(car.currentX - car.endX);
+                const dy = Math.abs(car.currentY - car.endY);
+                if (dx <= 0.5 && dy <= 0.5) {
+                    car.currentX = car.endX;
+                    car.currentY = car.endY;
+                    car.reached = true;
+                }
+                
+                if (!car.reached) {
+                    allReached = false;
+                }
+            }
+            
+            // 所有车辆都到达终点 → 死锁完全形成
+            if (allReached && !deadlockActive) {
+                deadlockActive = true;
+                document.getElementById('deadlockFlag').innerText = '🔒 死锁状态 (Deadlock)';
+                // 动画停止, 不再移动
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                    animationId = null;
+                    isAnimating = false;
+                }
+                // 额外绘制一次显示最终死锁信息
+                drawScene();
+                return true; // 表示死锁达成，停止动画
+            }
+            return false; // 未达成死锁继续
+        }
+        
+        // ---------- 绘制美丽十字路口 + 车辆 + 死锁提示特效 ----------
+        function drawRoad() {
+            // 沥青路面底色
+            ctx.fillStyle = '#2C2F33';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 道路 (主干道)
+            ctx.fillStyle = '#3E4A5B';
+            // 横向道路 (宽度120)
+            ctx.fillRect(0, centerY - 60, canvas.width, 120);
+            // 纵向道路
+            ctx.fillRect(centerX - 60, 0, 120, canvas.height);
+            
+            // 车道分隔线 (白色虚线)
+            ctx.beginPath();
+            ctx.strokeStyle = '#F4F9FF';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([15, 25]);
+            // 横向中线
+            ctx.beginPath();
+            ctx.moveTo(0, centerY);
+            ctx.lineTo(canvas.width, centerY);
+            ctx.stroke();
+            // 纵向中线
+            ctx.beginPath();
+            ctx.moveTo(centerX, 0);
+            ctx.lineTo(centerX, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]); // 重置实线
+            
+            // 路面边缘白实线
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#FFE5B4';
+            ctx.setLineDash([]);
+            // 横向路边缘
+            ctx.strokeRect(0, centerY-60, canvas.width, 120);
+            ctx.strokeRect(centerX-60, 0, 120, canvas.height);
+            
+            // 斑马线 (示意)
+            ctx.fillStyle = '#FFFFFFAA';
+            for(let i=-2; i<=2; i++) {
+                ctx.fillRect(centerX-40 + i*12, centerY-8, 6, 16);
+                ctx.fillRect(centerX-40 + i*12, centerY-8, 6, 16);
+                ctx.fillRect(centerX-8, centerY-40 + i*12, 16, 6);
+                ctx.fillRect(centerX-8, centerY-40 + i*12, 16, 6);
+            }
+            
+            // 路口中心网格 (黄色区域)
+            ctx.fillStyle = '#E9C46A';
+            ctx.globalAlpha = 0.5;
+            ctx.fillRect(centerX-30, centerY-30, 60, 60);
+            ctx.globalAlpha = 1;
+            ctx.strokeStyle = '#D4A373';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(centerX-30, centerY-30, 60, 60);
+            
+            // 方向箭头 (引导)
+            ctx.fillStyle = '#FFFDD0';
+            ctx.font = "bold 24px 'Segoe UI'";
+            ctx.shadowBlur = 0;
+            // 东向西箭头示意
+            ctx.fillText("→", 650, centerY-20);
+            ctx.fillText("←", 120, centerY+25);
+            ctx.fillText("↓", centerX+20, 120);
+            ctx.fillText("↑", centerX-35, 480);
+        }
+        
+        // 画车辆 (带有车灯、圆角效果)
+        function drawCar(car) {
+            ctx.save();
+            ctx.shadowBlur = 0;
+            // 绘制车身阴影
+            ctx.shadowColor = "rgba(0,0,0,0.4)";
+            ctx.shadowBlur = 4;
+            // 圆角矩形
+            const x = car.currentX;
+            const y = car.currentY;
+            const w = car.width;
+            const h = car.height;
+            ctx.fillStyle = car.color;
+            ctx.beginPath();
+            ctx.roundRect(x, y, w, h, 6);
+            ctx.fill();
+            
+            // 车窗/细节
+            ctx.fillStyle = '#2B2D42';
+            if(car.direction === 'E→W' || car.direction === 'W→E') {
+                ctx.fillRect(x+5, y+4, 6, 12);
+                ctx.fillRect(x+w-11, y+4, 6, 12);
+            } else {
+                ctx.fillRect(x+4, y+5, 12, 6);
+                ctx.fillRect(x+4, y+h-11, 12, 6);
+            }
+            // 车灯
+            ctx.fillStyle = '#F8F3E6';
+            if(car.direction === 'E→W') {
+                ctx.fillRect(x+w-6, y+2, 4, 5);
+                ctx.fillRect(x+w-6, y+h-7, 4, 5);
+            } else if(car.direction === 'W→E') {
+                ctx.fillRect(x+2, y+2, 4, 5);
+                ctx.fillRect(x+2, y+h-7, 4, 5);
+            } else if(car.direction === 'N→S') {
+                ctx.fillRect(x+2, y+h-6, 5, 4);
+                ctx.fillRect(x+w-7, y+h-6, 5, 4);
+            } else {
+                ctx.fillRect(x+2, y+2, 5, 4);
+                ctx.fillRect(x+w-7, y+2, 5, 4);
+            }
+            
+            // 文字标识 (方向简写)
+            ctx.font = "bold 14px 'Segoe UI'";
+            ctx.fillStyle = "#FFFFFF";
+            ctx.shadowBlur = 2;
+            ctx.fillText(car.label, x+3, y+ (car.height/2)+5);
+            // 若死锁形成且在动画外 显示等待标识
+            if(deadlockActive) {
+                ctx.font = "bold 16px monospace";
+                ctx.fillStyle = "#FFB347";
+                ctx.shadowBlur = 0;
+                ctx.fillText("⛔", x+car.width-12, y-4);
+            } else if(car.reached && !deadlockActive){
+                // 在移动过程中已经到达中心但是死锁还未宣布（等待其他车）也显示等待
+                ctx.font = "14px monospace";
+                ctx.fillStyle = "#FFD966";
+                ctx.fillText("⌛", x+car.width-12, y-4);
+            }
+            ctx.restore();
+        }
+        
+        // 辅助圆角矩形
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+                if (w < 2 * r) r = w / 2;
+                if (h < 2 * r) r = h / 2;
+                this.moveTo(x+r, y);
+                this.lineTo(x+w-r, y);
+                this.quadraticCurveTo(x+w, y, x+w, y+r);
+                this.lineTo(x+w, y+h-r);
+                this.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+                this.lineTo(x+r, y+h);
+                this.quadraticCurveTo(x, y+h, x, y+h-r);
+                this.lineTo(x, y+r);
+                this.quadraticCurveTo(x, y, x+r, y);
+                return this;
+            };
+        }
+        
+        // 绘制额外说明 + 死锁光效
+        function drawDeadlockOverlay() {
+            if (deadlockActive) {
+                ctx.globalAlpha = 0.7;
+                ctx.fillStyle = "#410000";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.globalAlpha = 1;
+                ctx.font = "bold 32 system-ui, 'Segoe UI'";
+                ctx.fillStyle = "#FFBC6E";
+                ctx.shadowBlur = 0;
+                ctx.fillText("💀 死锁 DEADLOCK 💀", centerX-160, centerY-45);
+                ctx.font = "bold 18px monospace";
+                ctx.fillStyle = "#FFE0A3";
+                ctx.fillText("四个方向车辆互相阻塞，无法前进", centerX-185, centerY+20);
+                ctx.font = "14px monospace";
+                ctx.fillStyle = "#DDDDDD";
+                ctx.fillText("← 点击「重置」重新演示 →", centerX-100, centerY+70);
+                // 同时画小号车辆轮廓展示死锁场景（为了让死锁画面仍然能看到车辆）
+                ctx.globalAlpha = 0.9;
+                for(let car of cars) {
+                    drawCar(car);
+                }
+                ctx.globalAlpha = 1;
+            }
+        }
+        
+        // 正常场景绘制(包括车辆和道路)
+        function drawScene() {
+            drawRoad();
+            for(let car of cars) {
+                drawCar(car);
+            }
+            // 绘制额外的等待提示或资源占用标示
+            if (!deadlockActive) {
+                ctx.font = "500 14px 'Segoe UI'";
+                ctx.fillStyle = "#FFFFC2";
+                ctx.shadowBlur = 0;
+                ctx.fillText("🚥 无交通信号 | 四车同时涌入路口", centerX-150, centerY-75);
+                // 如果所有车都到达终点但死锁还未显示 (刚刚完成移动)
+                let allArrived = cars.every(car => car.reached === true);
+                if(allArrived && !deadlockActive) {
+                    // 理论死锁立即显示
+                    deadlockActive = true;
+                    document.getElementById('deadlockFlag').innerText = '🔒 死锁状态 (Deadlock)';
+                    drawScene(); // 重绘死锁覆盖
+                }
+            } else {
+                drawDeadlockOverlay();
+            }
+        }
+        
+        // ---------- 重置系统 ----------
+        function resetSimulation() {
+            // 停止动画
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            isAnimating = false;
+            deadlockActive = false;
+            // 重置车辆数据
+            for (let car of cars) {
+                car.currentX = car.startX;
+                car.currentY = car.startY;
+                car.reached = false;
+            }
+            // 重置状态文字
+            document.getElementById('deadlockFlag').innerText = '🚗 正常行驶';
+            // 重绘场景
+            drawScene();
+        }
+        
+        // ---------- 动画循环 (逐步移动直至死锁) ----------
+        function animate() {
+            if (!isAnimating) return;
+            
+            // 更新位置, 如果返回true表示死锁达成并且动画已停止
+            const deadlockHappened = updatePositions();
+            drawScene();    // 每帧重绘
+            
+            if (deadlockHappened) {
+                // 死锁已经发生，updatePositions内部取消了动画且设置deadlockActive
+                isAnimating = false;
+                animationId = null;
+                return;
+            }
+            
+            // 检查所有车辆是否都已经到达终点 (可能死锁还没标记)
+            const allFinished = cars.every(car => car.reached === true);
+            if (allFinished && !deadlockActive) {
+                // 所有车已到阻塞点，立即激活死锁并停止动画
+                deadlockActive = true;
+                document.getElementById('deadlockFlag').innerText = '🔒 死锁状态 (Deadlock)';
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                    animationId = null;
+                }
+                isAnimating = false;
+                drawScene();
+                return;
+            }
+            
+            // 继续动画
+            animationId = requestAnimationFrame(animate);
+        }
+        
+        // 开始模拟: 重置后开始死锁演变
+        function startDeadlockDemo() {
+            // 如果正在动画中, 先重置再开始 (保证干净模拟)
+            if (isAnimating) {
+                resetSimulation();
+            }
+            // 如果处于死锁界面, 重置
+            if (deadlockActive) {
+                resetSimulation();
+            }
+            // 确保重置后所有车辆处于起始位置, 标志位正确
+            resetSimulation();  // 再次确保状态干净
+            
+            // 启动动画
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            isAnimating = true;
+            deadlockActive = false;
+            document.getElementById('deadlockFlag').innerText = '🚦 车辆行驶中 ...';
+            animate();
+        }
+        
+        // 绑定UI事件
+        const startBtn = document.getElementById('btn-start');
+        const resetBtn = document.getElementById('btn-reset');
+        
+        startBtn.addEventListener('click', () => {
+            startDeadlockDemo();
+        });
+        
+        resetBtn.addEventListener('click', () => {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            isAnimating = false;
+            resetSimulation();
+        });
+        
+        // 初始化绘制静态场景
+        resetSimulation();
+        
+        // 增加附加提示: 点击canvas也可以重置？ 不干扰，可选但保留说明
+        canvas.addEventListener('dblclick', () => {
+            resetSimulation();
+            if (isAnimating) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+                isAnimating = false;
+            }
+        });
+        
+        // 控制台输出教学提示
+        console.log('死锁演示已启动 | 四车互锁模型: 每个车辆占用路口部分资源并等待其他车辆释放，最终形成死锁');
+    })();
+</script>
+</body>
+</html>

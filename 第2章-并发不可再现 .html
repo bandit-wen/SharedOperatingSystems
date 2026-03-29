@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<!-- saved from url=(0070)file:///C:/Users/wen/Desktop/%E4%B8%8D%E5%8F%AF%E5%86%8D%E7%94%9F.html -->
+<html lang="zh"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>并发不可再现 · 步骤清晰版</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        body {
+            background: #eef2f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 16px;
+        }
+        .demo-container {
+            max-width: 1000px;
+            width: 100%;
+            background: white;
+            border-radius: 36px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15);
+            padding: 32px 28px;
+        }
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 540;
+            color: #0b1e33;
+            margin: 0 0 6px 0;
+            letter-spacing: -0.02em;
+        }
+        .sub {
+            color: #2c3e5c;
+            font-size: 1.1rem;
+            margin-bottom: 32px;
+            border-left: 5px solid #2563eb;
+            padding-left: 20px;
+            background: #f8fbff;
+            border-radius: 0 20px 20px 0;
+            line-height: 1.5;
+        }
+        .shared-panel {
+            background: #e6edf8;
+            border-radius: 50px;
+            padding: 24px 32px;
+            margin: 30px 0 36px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 20px;
+            border: 1px solid #bdd3eb;
+        }
+        .shared-label {
+            font-size: 1.2rem;
+            font-weight: 500;
+            color: #1e3a6b;
+        }
+        .shared-value {
+            background: white;
+            font-size: 4.2rem;
+            font-weight: 650;
+            font-family: 'Fira Mono', 'Courier New', monospace;
+            padding: 8px 48px;
+            border-radius: 60px;
+            box-shadow: inset 0 3px 8px rgba(0,0,0,0.02), 0 10px 15px -10px #1e3a6b;
+            color: #0a2540;
+        }
+        .process-grid {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            margin: 20px 0 30px;
+        }
+        .process-card {
+            flex: 1 1 300px;
+            background: #ffffff;
+            border-radius: 36px;
+            padding: 28px 24px;
+            box-shadow: 0 12px 30px -8px rgba(0, 40, 80, 0.1);
+            border: 1.5px solid #dee9f2;
+            transition: all 0.2s;
+        }
+        .process-card.A {
+            border-top: 8px solid #2563eb;
+        }
+        .process-card.B {
+            border-top: 8px solid #ea580c;
+        }
+        .proc-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .proc-title h2 {
+            font-size: 2rem;
+            font-weight: 500;
+            margin: 0;
+            color: #1f2a44;
+        }
+        .proc-badge {
+            background: #dee9f2;
+            color: #1e3a6b;
+            border-radius: 40px;
+            padding: 6px 18px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        .step-indicator {
+            background: #f2f6fc;
+            border-radius: 30px;
+            padding: 20px 16px;
+            margin: 18px 0 20px;
+        }
+        .step-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 8px 0;
+            padding: 4px 0;
+        }
+        .step-name {
+            font-size: 1.1rem;
+            font-weight: 460;
+            color: #1f2a44;
+        }
+        .step-dot {
+            width: 24px;
+            height: 24px;
+            border-radius: 24px;
+            background: #cbd5e1;
+            transition: background 0.15s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .step-dot.pending { background: #cbd5e1; }      /* 未开始：灰色 */
+        .step-dot.active { background: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.3); }  /* 进行中：蓝色 + 光晕 */
+        .step-dot.completed { background: #10b981; }    /* 已完成：绿色 */
+
+        .temp-store {
+            background: #ffffff;
+            border: 2px dashed #90a4c2;
+            border-radius: 24px;
+            padding: 14px 12px;
+            margin: 20px 0 12px;
+            text-align: center;
+            font-family: 'Fira Mono', monospace;
+            font-size: 1.8rem;
+            color: #0b1e33;
+        }
+        .temp-store span {
+            display: block;
+            font-size: 0.9rem;
+            color: #4a5f7a;
+            font-family: 'Inter', sans-serif;
+            margin-bottom: 6px;
+        }
+
+        .action-btn {
+            background: white;
+            border: 2px solid #cbd5e1;
+            padding: 16px 10px;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            font-weight: 550;
+            color: #1f2a44;
+            width: 100%;
+            cursor: pointer;
+            transition: 0.1s;
+            margin-top: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.02);
+        }
+        .action-btn:hover:not(:disabled) {
+            background: #f1f6fd;
+            border-color: #6b8ab5;
+        }
+        .action-btn:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+        .action-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .btn-exec-a { border-top: 4px solid #2563eb; }
+        .btn-exec-b { border-top: 4px solid #ea580c; }
+
+        .control-bar {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 30px 0 10px;
+            border-top: 1px solid #cbd5e1;
+            padding-top: 30px;
+        }
+        .ctrl-btn {
+            flex: 1 1 180px;
+            background: #f2f6fc;
+            border: 1px solid #9bb3d0;
+            border-radius: 60px;
+            padding: 16px 22px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #0b1e33;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+        .ctrl-btn:hover {
+            background: #e2ebf6;
+            border-color: #5079a7;
+        }
+        .reset-ctrl {
+            background: #fff1f0;
+            border-color: #f9acaa;
+            color: #a1312b;
+        }
+        .reset-ctrl:hover {
+            background: #ffe0dd;
+        }
+        .legend {
+            background: #e6edf8;
+            border-radius: 40px;
+            padding: 14px 28px;
+            font-size: 0.95rem;
+            color: #2c3e5c;
+            text-align: center;
+            margin-top: 30px;
+        }
+        .legend span {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 16px;
+            margin: 0 4px 0 12px;
+        }
+        .legend .dot-pending { background: #cbd5e1; }
+        .legend .dot-active { background: #2563eb; }
+        .legend .dot-completed { background: #10b981; }
+    </style>
+</head>
+<body>
+<div class="demo-container">
+    <h1>⚙️ 不可再现的并发</h1>
+    <div class="sub">
+        程序 A 和 B 各自对共享变量 X 做：读取 → 加1 → 写回。<br>
+        每一步都清晰标记，不同的交错会产生不同的最终 X (可能是 1 或 2)。
+    </div>
+
+    <!-- 共享变量展示 -->
+    <div class="shared-panel">
+        <span class="shared-label">📦 共享变量 X</span>
+        <span class="shared-value" id="xDisplay">0</span>
+    </div>
+
+    <!-- 两个程序卡片 -->
+    <div class="process-grid">
+        <!-- 程序 A -->
+        <div class="process-card A" id="procA">
+            <div class="proc-title">
+                <h2>程序 A</h2>
+                <span class="proc-badge">先读后写</span>
+            </div>
+
+            <!-- 步骤指示器：读 / 写 两个圆点 -->
+            <div class="step-indicator">
+                <div class="step-row">
+                    <span class="step-name">① 读取X并+1</span>
+                    <span class="step-dot completed" id="stepA1"></span>
+                </div>
+                <div class="step-row">
+                    <span class="step-name">② 更新X</span>
+                    <span class="step-dot active" id="stepA2"></span>
+                </div>
+            </div>
+
+            <!-- 临时值显示 -->
+            <div class="temp-store">
+                <span>📋 临时值 (已读未写)</span>
+                <span id="tempA">0</span>
+            </div>
+
+            <!-- 动态按钮 (文字会变) -->
+            <button class="action-btn btn-exec-a" id="btnA" onclick="stepProgram(&#39;A&#39;)">✎ 执行 A · 写回</button>
+        </div>
+
+        <!-- 程序 B -->
+        <div class="process-card B" id="procB">
+            <div class="proc-title">
+                <h2>程序 B</h2>
+                <span class="proc-badge">先读后写</span>
+            </div>
+
+            <div class="step-indicator">
+                <div class="step-row">
+                    <span class="step-name">① 读取X并+1</span>
+                    <span class="step-dot completed" id="stepB1"></span>
+                </div>
+                <div class="step-row">
+                    <span class="step-name">② 更新X</span>
+                    <span class="step-dot active" id="stepB2"></span>
+                </div>
+            </div>
+
+            <div class="temp-store">
+                <span>📋 临时值 (已读未写)</span>
+                <span id="tempB">0</span>
+            </div>
+
+            <button class="action-btn btn-exec-b" id="btnB" onclick="stepProgram(&#39;B&#39;)">✎ 执行 B · 写回</button>
+        </div>
+    </div>
+
+    <!-- 控制按钮组 -->
+    <div class="control-bar">
+        <button class="ctrl-btn" onclick="randomStep()">🎲 随机执行一步</button>
+        <button class="ctrl-btn reset-ctrl" onclick="resetDemo()">↺ 重置全部</button>
+    </div>
+
+    <!-- 图例说明 -->
+    <div class="legend">
+        <span class="dot-pending"></span> 未开始
+        <span class="dot-active"></span> 当前步骤 (进行中)
+        <span class="dot-completed"></span> 已完成
+        <span style="margin-left: 20px;">💡 </span>
+    </div>
+</div>
+
+<script>
+    // ----- 状态 -----
+    let shared = 0;
+    let stepA = 0;      // 0:待读, 1:已读待写, 2:完成
+    let tempA = null;
+    let stepB = 0;
+    let tempB = null;
+
+    // 获取元素
+    const xDisplay = document.getElementById('xDisplay');
+    const stepA1 = document.getElementById('stepA1');
+    const stepA2 = document.getElementById('stepA2');
+    const tempASpan = document.getElementById('tempA');
+    const btnA = document.getElementById('btnA');
+    const stepB1 = document.getElementById('stepB1');
+    const stepB2 = document.getElementById('stepB2');
+    const tempBSpan = document.getElementById('tempB');
+    const btnB = document.getElementById('btnB');
+
+    // 更新所有UI
+    function refreshUI() {
+        // 共享变量
+        xDisplay.innerText = shared;
+
+        // ----- 程序A 步骤圆点 & 临时值 & 按钮文字 -----
+        if (stepA === 0) {
+            stepA1.className = 'step-dot active';      // 读 进行中
+            stepA2.className = 'step-dot pending';      // 写 未开始
+            tempASpan.innerText = '—';
+            btnA.innerText = '▶ 执行 A · 读';
+            btnA.disabled = false;
+        } else if (stepA === 1) {
+            stepA1.className = 'step-dot completed';    // 读 已完成
+            stepA2.className = 'step-dot active';        // 写 进行中
+            tempASpan.innerText = tempA;
+            btnA.innerText = '✎ 执行 A · 写回';
+            btnA.disabled = false;
+        } else if (stepA === 2) {
+            stepA1.className = 'step-dot completed';    
+            stepA2.className = 'step-dot completed';
+            tempASpan.innerText = '—';
+            btnA.innerText = '✓ A 已完成';
+            btnA.disabled = true;
+        }
+
+        // ----- 程序B -----
+        if (stepB === 0) {
+            stepB1.className = 'step-dot active';
+            stepB2.className = 'step-dot pending';
+            tempBSpan.innerText = '—';
+            btnB.innerText = '▶ 执行 B · 读';
+            btnB.disabled = false;
+        } else if (stepB === 1) {
+            stepB1.className = 'step-dot completed';
+            stepB2.className = 'step-dot active';
+            tempBSpan.innerText = tempB;
+            btnB.innerText = '✎ 执行 B · 写回';
+            btnB.disabled = false;
+        } else if (stepB === 2) {
+            stepB1.className = 'step-dot completed';
+            stepB2.className = 'step-dot completed';
+            tempBSpan.innerText = '—';
+            btnB.innerText = '✓ B 已完成';
+            btnB.disabled = true;
+        }
+    }
+
+    // 执行一个程序的下一步
+    function stepProgram(prog) {
+        if (prog === 'A') {
+            if (stepA === 0) {
+                // 读
+                tempA = shared;
+                stepA = 1;
+            } else if (stepA === 1) {
+                // 写
+                shared = tempA + 1;
+                tempA = null;
+                stepA = 2;
+            } else {
+                return; // 已完成
+            }
+        } else if (prog === 'B') {
+            if (stepB === 0) {
+                tempB = shared;
+                stepB = 1;
+            } else if (stepB === 1) {
+                shared = tempB + 1;
+                tempB = null;
+                stepB = 2;
+            } else {
+                return;
+            }
+        }
+        refreshUI();
+    }
+
+    // 随机执行一个未完成的程序的一步
+    function randomStep() {
+        const available = [];
+        if (stepA < 2) available.push('A');
+        if (stepB < 2) available.push('B');
+
+        if (available.length === 0) {
+            alert('两个程序都已执行完毕，请重置重新演示。');
+            return;
+        }
+
+        const chosen = available[Math.floor(Math.random() * available.length)];
+        stepProgram(chosen);
+    }
+
+    // 重置
+    function resetDemo() {
+        shared = 0;
+        stepA = 0;
+        tempA = null;
+        stepB = 0;
+        tempB = null;
+        refreshUI();
+    }
+
+    // 初始化
+    refreshUI();
+</script>
+
+</body></html>

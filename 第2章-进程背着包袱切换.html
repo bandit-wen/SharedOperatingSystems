@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>操作系统：进程备着包袱切换</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+        }
+        body {
+            background: linear-gradient(145deg, #f0f4fa 0%, #e6ecf5 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 16px;
+        }
+        .card {
+            background: rgba(255,255,255,0.8);
+            backdrop-filter: blur(4px);
+            border-radius: 2rem;
+            box-shadow: 0 20px 40px rgba(0,10,30,0.25), inset 0 1px 2px rgba(255,255,255,0.8);
+            padding: 24px 30px 30px 30px;
+            max-width: 1000px;
+            width: fit-content;
+            border: 1px solid rgba(255,255,255,0.6);
+        }
+        h1 {
+            margin: 0 0 8px 0;
+            font-weight: 600;
+            font-size: 1.9rem;
+            color: #11212e;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        h1 span {
+            background: #2c3e4f;
+            color: #f0d99d;
+            font-size: 1.2rem;
+            font-weight: 500;
+            padding: 0.2rem 1rem;
+            border-radius: 40px;
+            letter-spacing: 1px;
+            box-shadow: inset 0 -2px 0 #1a2a33;
+        }
+        .sub {
+            color: #1f3a4b;
+            margin: 0 0 18px 0;
+            font-size: 1.1rem;
+            font-weight: 400;
+            border-left: 5px solid #d4a373;
+            padding-left: 18px;
+            background: rgba(255,245,220,0.4);
+            border-radius: 0 20px 20px 0;
+        }
+        .canvas-wrapper {
+            background: #1f2e3b;
+            border-radius: 36px;
+            padding: 20px;
+            box-shadow: inset 0 -5px 0 #0f1a22, 0 15px 25px rgba(0,0,0,0.5);
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            background: #eef4f9;
+            border-radius: 24px;
+            box-shadow: 0 0 0 2px #c0cfde, 0 10px 20px rgba(0,0,0,0.3);
+            cursor: pointer;
+        }
+        .legend-panel {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            gap: 15px;
+        }
+        .pcb-badge {
+            display: flex;
+            gap: 25px;
+            background: #263b49;
+            padding: 12px 25px;
+            border-radius: 48px;
+            box-shadow: inset 0 -3px 0 #15232e;
+            color: white;
+        }
+        .badge-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .badge-color {
+            width: 18px;
+            height: 18px;
+            border-radius: 8px;
+            background: #73b3d0;
+            box-shadow: 0 3px 0 #3d6a81;
+        }
+        .badge-color.b {
+            background: #b5c97b;
+            box-shadow: 0 3px 0 #6f7d48;
+        }
+        .ctrl-btn {
+            background: #d4a373;
+            border: none;
+            color: #1e2f3a;
+            font-weight: 700;
+            font-size: 1.3rem;
+            padding: 14px 36px;
+            border-radius: 60px;
+            box-shadow: 0 8px 0 #8b5e3c, 0 10px 20px rgba(0,0,0,0.2);
+            transition: 0.07s ease;
+            cursor: pointer;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .ctrl-btn:active {
+            transform: translateY(6px);
+            box-shadow: 0 2px 0 #8b5e3c, 0 8px 16px rgba(0,0,0,0.2);
+        }
+        .ctrl-btn:disabled {
+            opacity: 0.5;
+            transform: translateY(4px);
+            box-shadow: 0 4px 0 #5f422b;
+            pointer-events: none;
+        }
+        .foot-note {
+            display: flex;
+            gap: 20px;
+            color: #1d2d39;
+            font-weight: 500;
+            background: #d9e2e9;
+            padding: 12px 24px;
+            border-radius: 40px;
+            font-size: 0.9rem;
+        }
+        .foot-note i {
+            font-style: normal;
+            background: #2e4a5e;
+            color: #f6e3c5;
+            padding: 4px 12px;
+            border-radius: 30px;
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>
+        📦 进程切换：背着包袱切换
+    </h1>
+    <div class="sub">⚡ 背啥包袱了？咋地了？你是干啥的？歪比巴卜！</div>
+
+    <div class="canvas-wrapper">
+        <canvas id="osCanvas" width="800" height="400"></canvas>
+    </div>
+
+    <div class="legend-panel">
+        <div class="pcb-badge">
+            <div class="badge-item"><span class="badge-color"></span> 进程A·PCB (PID:1001)</div>
+            <div class="badge-item"><span class="badge-color b"></span> 进程B·PCB (PID:1002)</div>
+        </div>
+        <button class="ctrl-btn" id="switchBtn">⭐ 执行一次切换</button>
+
+    </div>
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('osCanvas');
+    const ctx = canvas.getContext('2d');
+    const switchBtn = document.getElementById('switchBtn');
+
+    // ---------- 固定坐标 (包袱左上角，尺寸稍微加大以便大字显示) ----------
+    const BAG_W = 220;          // 加宽
+    const BAG_H = 120;          // 加高
+
+    // 重新计算位置，使布局居中且不重叠
+    const CPU_BAG_POS = { x: 330, y: 140 };      // CPU上包袱位置 (左上角)
+    const A_SIDE_POS = { x: 80, y: 140 };        // 进程A旁边包袱位置
+    const B_SIDE_POS = { x: 580, y: 140 };       // 进程B旁边包袱位置
+
+    // 进程小人位置 (微调配合新包袱尺寸)
+    const PROC_A_CX = 60, PROC_A_CY = 200;
+    const PROC_B_CX = 740, PROC_B_CY = 200;
+    const CPU_CX = 400, CPU_CY = 200;              // CPU图标中心
+
+    // ---------- 两个PCB（详细四类信息） ----------
+    const PCB_A = {
+        pid: '1001',
+        ppid: '0',
+        pc: '0x1A3F',
+        sp: '0x9C40',
+        priority: '8',
+        state: 'Ready',
+        memPtr: '0xB2E000',
+        files: '3',
+        extra: '📂 stdin/out'
+    };
+
+    const PCB_B = {
+        pid: '1002',
+        ppid: '1',
+        pc: '0x5B22',
+        sp: '0xED00',
+        priority: '5',
+        state: 'Ready',
+        memPtr: '0xF15000',
+        files: '5',
+        extra: '🔒 lock'
+    };
+
+    // ---------- 动画状态 ----------
+    let bagAPos = { x: CPU_BAG_POS.x, y: CPU_BAG_POS.y };
+    let bagBPos = { x: B_SIDE_POS.x, y: B_SIDE_POS.y };
+
+    let targetA = { x: CPU_BAG_POS.x, y: CPU_BAG_POS.y };
+    let targetB = { x: B_SIDE_POS.x, y: B_SIDE_POS.y };
+
+    let moving = false;
+    let animFrame = null;
+
+    function isNear(p1, p2, threshold = 0.8) {
+        return Math.abs(p1.x - p2.x) < threshold && Math.abs(p1.y - p2.y) < threshold;
+    }
+
+    function setTargetForSwitch() {
+        if (targetA.x === CPU_BAG_POS.x && targetA.y === CPU_BAG_POS.y) {
+            targetA = { ...A_SIDE_POS };
+            targetB = { ...CPU_BAG_POS };
+        } else {
+            targetA = { ...CPU_BAG_POS };
+            targetB = { ...B_SIDE_POS };
+        }
+    }
+
+    function resetToInitial() {
+        targetA = { ...CPU_BAG_POS };
+        targetB = { ...B_SIDE_POS };
+        bagAPos = { ...CPU_BAG_POS };
+        bagBPos = { ...B_SIDE_POS };
+        moving = false;
+        drawScene();
+    }
+
+    function updateAnimation() {
+        if (moving) {
+            const speed = 0.08;
+            bagAPos.x += (targetA.x - bagAPos.x) * speed;
+            bagAPos.y += (targetA.y - bagAPos.y) * speed;
+            bagBPos.x += (targetB.x - bagBPos.x) * speed;
+            bagBPos.y += (targetB.y - bagBPos.y) * speed;
+
+            const aNear = isNear(bagAPos, targetA, 0.5);
+            const bNear = isNear(bagBPos, targetB, 0.5);
+
+            if (aNear && bNear) {
+                bagAPos = { ...targetA };
+                bagBPos = { ...targetB };
+                moving = false;
+            }
+        }
+        drawScene();
+        animFrame = requestAnimationFrame(updateAnimation);
+    }
+
+    // ---------- 绘制场景 (无网格，无阴影) ----------
+    function drawScene() {
+        ctx.clearRect(0, 0, 800, 400);
+        // 背景纯色，无网格
+
+        // ----- 画 CPU -----
+        ctx.fillStyle = "#3c5a70";
+        ctx.beginPath();
+        ctx.roundRect(360, 160, 80, 80, 16);
+        ctx.fill();
+        ctx.fillStyle = "#e2eaf2";
+        ctx.font = "bold 14px 'Segoe UI', 'Courier New', monospace";
+        ctx.fillText("💻 CPU", 375, 205);
+        ctx.font = "bold 12px 'Segoe UI'";
+        ctx.fillStyle = "#0f2b3b";
+        ctx.fillText("❌ 切换时CPU等待", 350, 130);
+
+        // ----- 画两个进程小人 -----
+        // 进程A
+        ctx.fillStyle = "#1976d2";
+        ctx.beginPath();
+        ctx.arc(PROC_A_CX, PROC_A_CY, 22, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 16px 'Segoe UI'";
+        ctx.fillText("A", PROC_A_CX-9, PROC_A_CY+7);
+        ctx.font = "bold 12px monospace";
+        ctx.fillStyle = "#042433";
+        ctx.fillText("进程A", PROC_A_CX-25, PROC_A_CY-30);
+
+        // 进程B
+        ctx.fillStyle = "#5a7d3a";
+        ctx.beginPath();
+        ctx.arc(PROC_B_CX, PROC_B_CY, 22, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 16px 'Segoe UI'";
+        ctx.fillText("B", PROC_B_CX-9, PROC_B_CY+7);
+        ctx.font = "bold 12px monospace";
+        ctx.fillStyle = "#042433";
+        ctx.fillText("进程B", PROC_B_CX-25, PROC_B_CY-30);
+
+        // ----- 画两个包袱 (无阴影，大号文字) -----
+        drawBag(bagAPos, 'A', PCB_A, bagAPos.x === CPU_BAG_POS.x && bagAPos.y === CPU_BAG_POS.y);
+        drawBag(bagBPos, 'B', PCB_B, bagBPos.x === CPU_BAG_POS.x && bagBPos.y === CPU_BAG_POS.y);
+
+        // ----- 画连接线 (虚线) -----
+        ctx.setLineDash([6, 6]);
+        ctx.strokeStyle = "#435f73";
+        ctx.lineWidth = 1.8;
+        // A进程到它的包袱
+        ctx.beginPath();
+        ctx.moveTo(PROC_A_CX+18, PROC_A_CY-10);
+        ctx.lineTo(bagAPos.x-5, bagAPos.y+40);
+        ctx.stroke();
+        // B进程到它的包袱
+        ctx.beginPath();
+        ctx.moveTo(PROC_B_CX-18, PROC_B_CY-10);
+        ctx.lineTo(bagBPos.x + BAG_W + 5, bagBPos.y+40);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 切换中提示
+        if (moving) {
+            ctx.font = "bold 22px 'Segoe UI'";
+            ctx.fillStyle = "#a13d2f";
+            ctx.fillText("⏳ 切换中 ... 包袱沉重 (保存/恢复PCB)", 150, 70);
+            // 汗滴
+            ctx.fillStyle = "#4790b5";
+            ctx.beginPath();
+            ctx.arc(540, 260, 6, 0, 2*Math.PI);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(560, 280, 5, 0, 2*Math.PI);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(530, 290, 5, 0, 2*Math.PI);
+            ctx.fill();
+        } else {
+            let running = (bagAPos.x === CPU_BAG_POS.x && bagAPos.y === CPU_BAG_POS.y) ? 'A' : 'B';
+            ctx.font = "bold 22px 'Segoe UI'";
+            ctx.fillStyle = "#1d5a7a";
+            ctx.fillText(`🏃 当前运行: 进程${running} `, 300, 70);
+        }
+
+    }
+
+    // 画包袱，无阴影，字体大，分组清晰
+    function drawBag(pos, label, pcbData, isOnCPU) {
+        const x = pos.x, y = pos.y;
+        let baseColor = (label === 'A') ? '#73b3d0' : '#b5c97b';
+        let darkColor = (label === 'A') ? '#326f8c' : '#7f8d4a';
+
+        // 包袱背景
+        ctx.fillStyle = baseColor;
+        ctx.beginPath();
+        ctx.roundRect(x, y, BAG_W, BAG_H, 16);
+        ctx.fill();
+
+        // 背带
+        ctx.fillStyle = darkColor;
+        ctx.beginPath();
+        ctx.roundRect(x+25, y-8, 20, 12, 6);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.roundRect(x+90, y-8, 20, 12, 6);
+        ctx.fill();
+
+        // 边框
+        ctx.strokeStyle = darkColor;
+        ctx.lineWidth = 0;
+        ctx.stroke();
+
+        // 包袱标题 (PCB-A / PCB-B) 大号
+        ctx.fillStyle = "#0e2a38";
+        ctx.font = "bold 16px 'Courier New', monospace";
+        ctx.fillText(`📦 PCB-${label}`, x+55, y+25);
+
+        // ---- 四大类信息 (分组展示，字体14px，加粗部分) ----
+        ctx.font = "13px 'Courier New', monospace";
+        ctx.fillStyle = "#111";
+
+        // ① 进程标识
+        ctx.fillText(`🆔 PID:${pcbData.pid}  PPID:${pcbData.ppid}`, x+8, y+45);
+
+        // ② 上下文信息 (程序计数器+堆栈指针)
+        ctx.fillText(`📄 PC:${pcbData.pc}  SP:${pcbData.sp}`, x+8, y+65);
+
+        // ③ 调度信息 (优先级+状态，状态动态)
+        let stateText = isOnCPU ? 'Running' : 'Ready';
+        ctx.fillText(`🐮 Pri:${pcbData.priority}  State:${stateText}`, x+8, y+85);
+
+        // ④ 控制信息 (内存指针+文件数)
+        ctx.fillText(`🈳 Mem:${pcbData.memPtr}  Files:${pcbData.files}`, x+8, y+105);
+
+        // 如果包袱在CPU上，加星
+        if (isOnCPU) {
+            ctx.font = "22px sans-serif";
+            ctx.fillStyle = "#f5c542";
+            ctx.fillText("⭐", x+150, y+25);
+        }
+    }
+
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+        if (w < 2 * r) r = w / 2;
+        if (h < 2 * r) r = h / 2;
+        this.moveTo(x + r, y);
+        this.lineTo(x + w - r, y);
+        this.quadraticCurveTo(x + w, y, x + w, y + r);
+        this.lineTo(x + w, y + h - r);
+        this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        this.lineTo(x + r, y + h);
+        this.quadraticCurveTo(x, y + h, x, y + h - r);
+        this.lineTo(x, y + r);
+        this.quadraticCurveTo(x, y, x + r, y);
+        this.closePath();
+        return this;
+    };
+
+    switchBtn.addEventListener('click', () => {
+        if (!moving) {
+            setTargetForSwitch();
+            moving = true;
+        }
+    });
+
+    resetToInitial();
+    animFrame = requestAnimationFrame(updateAnimation);
+
+    window.addEventListener('beforeunload', () => {
+        if (animFrame) cancelAnimationFrame(animFrame);
+    });
+})();
+</script>
+</body>
+</html>
