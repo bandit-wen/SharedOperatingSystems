@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>银行家算法动画演示 | 操作系统 · 死锁避免</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, 'Segoe UI', 'Roboto', 'Noto Sans', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(145deg, #f0f4fa 0%, #e6edf4 100%);
+            margin: 0;
+            min-height: 100vh;
+            padding: 24px 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 主卡片 */
+        .banker-card {
+            max-width: 1400px;
+            width: 100%;
+            background: rgba(255,255,255,0.92);
+            backdrop-filter: blur(0px);
+            border-radius: 2rem;
+            box-shadow: 0 25px 45px -12px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.05);
+            overflow: hidden;
+            transition: all 0.2s;
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+
+        /* 头部 */
+        .header {
+            background: #1e2a3e;
+            color: white;
+            padding: 1.2rem 2rem;
+            border-bottom: 4px solid #3b82f6;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-weight: 600;
+            font-size: 1.8rem;
+            letter-spacing: -0.3px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header h1 small {
+            font-size: 0.85rem;
+            font-weight: 400;
+            background: #2d3e5a;
+            padding: 4px 12px;
+            border-radius: 40px;
+            color: #bbd9ff;
+        }
+
+        .sub {
+            margin-top: 8px;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        /* 资源栏 */
+        .resources-panel {
+            background: #f8fafc;
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #dce5ef;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        .avail-box {
+            background: #ffffff;
+            border-radius: 28px;
+            padding: 8px 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border: 1px solid #cbdde9;
+        }
+
+        .avail-title {
+            font-weight: 600;
+            color: #1e40af;
+            margin-right: 12px;
+            font-size: 1rem;
+        }
+
+        .vector-badge {
+            display: inline-flex;
+            gap: 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            background: #eef2ff;
+            padding: 6px 16px;
+            border-radius: 32px;
+        }
+
+        .vector-badge span {
+            background: #1e293b;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 24px;
+            font-size: 0.9rem;
+        }
+
+        .ctrl-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: white;
+            border: 1px solid #b9cee8;
+            padding: 8px 18px;
+            border-radius: 40px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: 0.2s;
+            color: #1e2a3e;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+        }
+
+        button.primary {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: white;
+            box-shadow: 0 4px 8px rgba(37,99,235,0.2);
+        }
+
+        button.primary:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+        button.danger {
+            background: #dc2626;
+            border-color: #dc2626;
+            color: white;
+        }
+
+        button.warning {
+            background: #ea580c;
+            border-color: #ea580c;
+            color: white;
+        }
+
+        button:hover {
+            background: #eef2ff;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 12px -8px rgba(0,0,0,0.2);
+        }
+
+        /* 表格区域 */
+        .table-wrapper {
+            overflow-x: auto;
+            padding: 1rem 2rem 0.5rem 2rem;
+        }
+
+        .process-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .process-table th {
+            background: #eef3fc;
+            padding: 14px 8px;
+            font-weight: 600;
+            color: #0c4a6e;
+            border-bottom: 2px solid #cbdde6;
+        }
+
+        .process-table td {
+            padding: 12px 8px;
+            text-align: center;
+            border-bottom: 1px solid #e2edf5;
+            font-family: monospace;
+            font-weight: 500;
+        }
+
+        .process-table tr:hover td {
+            background: #f9fbfe;
+        }
+
+        .res-group {
+            display: inline-flex;
+            gap: 12px;
+            justify-content: center;
+            font-weight: 500;
+        }
+
+        .badge-res {
+            background: #f1f5f9;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+        }
+
+        /* 动画安全检测区域 */
+        .safety-area {
+            margin: 0 2rem 1.5rem 2rem;
+            background: #f1f6fe;
+            border-radius: 1.5rem;
+            padding: 1.2rem 1.5rem;
+            border-left: 6px solid #3b82f6;
+            transition: all 0.2s;
+        }
+
+        .safety-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+            gap: 12px;
+        }
+
+        .step-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .step-display {
+            background: #ffffffcc;
+            backdrop-filter: blur(4px);
+            border-radius: 40px;
+            padding: 6px 16px;
+            font-weight: 500;
+        }
+
+        .work-status {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 12px 18px;
+            margin: 12px 0;
+            font-family: monospace;
+            font-size: 0.9rem;
+            border: 1px solid #cde1f0;
+        }
+
+        .sequence-progress {
+            background: #e9f2fa;
+            border-radius: 20px;
+            padding: 10px 16px;
+            margin-top: 12px;
+        }
+
+        .request-panel {
+            margin: 0 2rem 1.8rem 2rem;
+            background: white;
+            border-radius: 1.2rem;
+            padding: 1rem 1.5rem;
+            border: 1px solid #cfdfed;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+        }
+
+        .flex-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: flex-end;
+        }
+
+        .req-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .req-group label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #334155;
+        }
+
+        input {
+            padding: 8px 12px;
+            border-radius: 28px;
+            border: 1px solid #b9d0e4;
+            width: 90px;
+            text-align: center;
+            font-family: monospace;
+            font-weight: 500;
+        }
+
+        .msg-bar {
+            margin-top: 10px;
+            font-size: 0.85rem;
+            color: #2c3e66;
+        }
+
+        footer {
+            font-size: 0.7rem;
+            text-align: center;
+            padding: 1rem;
+            border-top: 1px solid #dce5ef;
+            color: #4b6b8f;
+        }
+
+        @media (max-width: 780px) {
+            .res-group { gap: 6px; }
+            .vector-badge span { font-size: 0.7rem; }
+            button { padding: 6px 12px; }
+        }
+    </style>
+</head>
+<body>
+<div class="banker-card">
+    <div class="header">
+        <h1>🏦 银行家算法 · 动态演示 <small>避免死锁 | 资源分配安全性检查</small></h1>
+        <div class="sub">多个进程并发共享有限资源 — 逐步模拟安全序列的查找过程，理解“剩余资源能否满足进程需求”</div>
+    </div>
+
+    <div class="resources-panel">
+        <div class="avail-box">
+            <span class="avail-title">📦 当前可用资源 (Available)</span>
+            <span class="vector-badge" id="availableDisplay">[—]</span>
+        </div>
+        <div class="ctrl-group">
+            <button id="resetSafeBtn" class="primary">🔄 重置经典安全示例</button>
+            <button id="resetUnsafeBtn" class="warning">⚠️ 不安全场景 (无安全序列)</button>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="process-table" id="processTable">
+            <thead>
+                <tr><th>进程</th><th>最大需求 Max</th><th>已分配 Allocation</th><th>尚需 Need</th><th>状态</th></tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- 逐步安全检测动画区 -->
+    <div class="safety-area">
+        <div class="safety-header">
+            <div><strong>🔍 安全性算法 · 逐步动画</strong> &nbsp; 根据当前可用资源与进程尚需，动态寻找安全序列</div>
+            <div class="step-buttons">
+                <button id="stepStartBtn" class="primary">▶ 开始逐步检测</button>
+                <button id="stepPrevBtn" disabled>◀ 上一步</button>
+                <button id="stepNextBtn" disabled>下一步 ▶</button>
+                <button id="stepResetBtn" disabled>重置演示</button>
+            </div>
+        </div>
+        <div id="stepInfoPanel">
+            <div class="work-status" id="stepWorkDisplay">⚙️ 当前 Work = 尚未开始逐步检测</div>
+            <div id="stepDetailMsg" style="margin: 8px 0; font-weight: 500;">✨ 点击“开始逐步检测” 观察安全性检查过程</div>
+            <div class="sequence-progress" id="safeSequenceDisplay">📋 安全序列 (已构建): 暂无</div>
+        </div>
+    </div>
+
+    <!-- 请求模拟区域 -->
+    <div class="request-panel">
+        <div style="font-weight:600; margin-bottom: 10px;">📨 模拟进程资源请求 (银行家算法完整流程)</div>
+        <div class="flex-row">
+            <div class="req-group">
+                <label>选择进程</label>
+                <select id="reqProcessSelect" style="padding: 8px 12px; border-radius: 28px; border:1px solid #b9d0e4;">
+                    <option value="0">P0</option>
+                    <option value="1">P1</option>
+                    <option value="2">P2</option>
+                    <option value="3">P3</option>
+                    <option value="4">P4</option>
+                </select>
+            </div>
+            <div class="req-group"><label>资源 A 请求数</label><input type="number" id="reqA" value="0" min="0" step="1"></div>
+            <div class="req-group"><label>资源 B 请求数</label><input type="number" id="reqB" value="0" min="0" step="1"></div>
+            <div class="req-group"><label>资源 C 请求数</label><input type="number" id="reqC" value="0" min="0" step="1"></div>
+            <button id="sendRequestBtn" class="primary">📤 请求资源并检测安全性</button>
+        </div>
+        <div id="reqMessage" class="msg-bar"></div>
+    </div>
+    <footer>💡 银行家算法核心：每次分配前检查是否存在安全序列，若存在才分配，避免死锁。点击“逐步检测”可观察 Work 向量的变化以及进程选择顺序。</footer>
+</div>
+
+<script>
+    // ---------- 定义资源类型数量 (3种资源 A,B,C) ----------
+    const RESOURCE_TYPES = 3;
+    // 进程数量固定5个 P0~P4
+    const PROCESS_COUNT = 5;
+
+    // 经典安全示例数据 (Max, Allocation)
+    // Max矩阵
+    const MAX_MATRIX = [
+        [7, 5, 3],
+        [3, 2, 2],
+        [9, 0, 2],
+        [2, 2, 2],
+        [4, 3, 3]
+    ];
+    const ALLOCATION_MATRIX = [
+        [0, 1, 0],
+        [2, 0, 0],
+        [3, 0, 2],
+        [2, 1, 1],
+        [0, 0, 2]
+    ];
+    // 初始可用资源 Available (3,3,2)
+    const INIT_AVAILABLE = [3, 3, 2];
+
+    // 不安全示例: 修改可用资源为 (1,1,2) 导致无法找到安全序列
+    const UNSAFE_AVAILABLE = [1, 1, 2];
+
+    // 全局当前状态
+    let currentMax = [];
+    let currentAllocation = [];
+    let currentNeed = [];
+    let currentAvailable = [];
+
+    // 逐步检测相关变量
+    let safetySteps = [];          // 存储每一步骤的对象 { work, selectedProcess, finishedList, safeSeq, isSafe, failReason }
+    let currentStepIndex = -1;
+    let stepModeActive = false;    // 是否已经生成步骤列表
+
+    // DOM 元素
+    const tableBody = document.getElementById('tableBody');
+    const availableDisplay = document.getElementById('availableDisplay');
+    const stepWorkDisplay = document.getElementById('stepWorkDisplay');
+    const stepDetailMsg = document.getElementById('stepDetailMsg');
+    const safeSequenceDisplay = document.getElementById('safeSequenceDisplay');
+    const stepStartBtn = document.getElementById('stepStartBtn');
+    const stepPrevBtn = document.getElementById('stepPrevBtn');
+    const stepNextBtn = document.getElementById('stepNextBtn');
+    const stepResetBtn = document.getElementById('stepResetBtn');
+    const resetSafeBtn = document.getElementById('resetSafeBtn');
+    const resetUnsafeBtn = document.getElementById('resetUnsafeBtn');
+    const sendRequestBtn = document.getElementById('sendRequestBtn');
+    const reqProcessSelect = document.getElementById('reqProcessSelect');
+    const reqA = document.getElementById('reqA');
+    const reqB = document.getElementById('reqB');
+    const reqC = document.getElementById('reqC');
+    const reqMessage = document.getElementById('reqMessage');
+
+    // ---------- 辅助函数 ----------
+    // 计算 Need = Max - Allocation
+    function computeNeed(maxMat, allocMat) {
+        let need = [];
+        for (let i = 0; i < PROCESS_COUNT; i++) {
+            need[i] = [];
+            for (let j = 0; j < RESOURCE_TYPES; j++) {
+                need[i][j] = maxMat[i][j] - allocMat[i][j];
+                if (need[i][j] < 0) need[i][j] = 0; // 安全性防护
+            }
+        }
+        return need;
+    }
+
+    // 深拷贝矩阵
+    function copyMatrix(matrix) {
+        return matrix.map(row => [...row]);
+    }
+
+    // 更新全局状态 (Max, Allocation, Available 会重新计算Need)
+    function updateGlobalState(newMax, newAllocation, newAvailable) {
+        currentMax = copyMatrix(newMax);
+        currentAllocation = copyMatrix(newAllocation);
+        currentNeed = computeNeed(currentMax, currentAllocation);
+        currentAvailable = [...newAvailable];
+        renderTable();
+        renderAvailable();
+        // 任何状态改变后，清除逐步演示状态
+        clearSafetySteps();
+    }
+
+    // 重置为经典安全示例
+    function resetToSafe() {
+        updateGlobalState(MAX_MATRIX, ALLOCATION_MATRIX, INIT_AVAILABLE);
+        reqMessage.innerText = '✅ 已重置为经典安全示例 (Available: 3,3,2) 存在安全序列';
+        reqMessage.style.color = '#15803d';
+    }
+
+    // 重置为不安全示例
+    function resetToUnsafe() {
+        updateGlobalState(MAX_MATRIX, ALLOCATION_MATRIX, UNSAFE_AVAILABLE);
+        reqMessage.innerText = '⚠️ 不安全场景: 当前可用资源(1,1,2)无法满足任何进程需求 → 无安全序列';
+        reqMessage.style.color = '#b91c1c';
+    }
+
+    // 渲染表格显示 Max, Allocation, Need
+    function renderTable() {
+        let html = '';
+        for (let i = 0; i < PROCESS_COUNT; i++) {
+            const maxVec = currentMax[i];
+            const allocVec = currentAllocation[i];
+            const needVec = currentNeed[i];
+            html += `<tr>
+                        <td style="font-weight:600;">P${i}</td>
+                        <td><div class="res-group">${formatVector(maxVec)}</div></td>
+                        <td><div class="res-group">${formatVector(allocVec)}</div></td>
+                        <td><div class="res-group">${formatVector(needVec)}</div></td>
+                        <td>${isProcessFinished(allocVec, currentMax[i]) ? '✅ 已完成' : '🔄 活跃'}</td>
+                     </tr>`;
+        }
+        tableBody.innerHTML = html;
+    }
+
+    function isProcessFinished(alloc, max) {
+        for(let i=0;i<RESOURCE_TYPES;i++) if(alloc[i] < max[i]) return false;
+        return true;
+    }
+
+    function formatVector(vec) {
+        return `<span class="badge-res">A:${vec[0]}</span> <span class="badge-res">B:${vec[1]}</span> <span class="badge-res">C:${vec[2]}</span>`;
+    }
+
+    function renderAvailable() {
+        availableDisplay.innerHTML = `<span>A:${currentAvailable[0]}</span> <span>B:${currentAvailable[1]}</span> <span>C:${currentAvailable[2]}</span>`;
+    }
+
+    // ---------- 安全性算法 (生成逐步步骤，不修改状态) ----------
+    // 返回值: steps数组，每个step包含 work, selected, safeSeqSnapshot, finishedArr, isDeadlock, message
+    function generateSafetySteps(maxMat, allocMat, needMat, availableVec) {
+        let work = [...availableVec];
+        let finish = new Array(PROCESS_COUNT).fill(false);
+        let safeSeq = [];
+        let steps = [];
+        // 记录初始步骤
+        steps.push({
+            stepIndex: 0,
+            work: [...work],
+            selectedProcess: null,
+            safeSeqSnapshot: [],
+            finishedSnapshot: [...finish],
+            isComplete: false,
+            isDeadlock: false,
+            message: "初始状态: Work = 当前可用资源"
+        });
+
+        let prevWork = [...work];
+        let prevFinish = [...finish];
+
+        while (true) {
+            let found = false;
+            for (let i = 0; i < PROCESS_COUNT; i++) {
+                if (!finish[i]) {
+                    // 检查 Need_i <= Work
+                    let canAlloc = true;
+                    for (let j = 0; j < RESOURCE_TYPES; j++) {
+                        if (needMat[i][j] > work[j]) {
+                            canAlloc = false;
+                            break;
+                        }
+                    }
+                    if (canAlloc) {
+                        // 分配资源模拟
+                        for (let j = 0; j < RESOURCE_TYPES; j++) {
+                            work[j] += allocMat[i][j];
+                        }
+                        finish[i] = true;
+                        safeSeq.push(i);
+                        found = true;
+                        // 记录步骤
+                        steps.push({
+                            stepIndex: steps.length,
+                            work: [...work],
+                            selectedProcess: i,
+                            safeSeqSnapshot: [...safeSeq],
+                            finishedSnapshot: [...finish],
+                            isComplete: false,
+                            isDeadlock: false,
+                            message: `✔️ 选中进程 P${i} (Need ≤ Work) → 分配资源并回收，Work 更新为 (${work.join(',')})`
+                        });
+                        break; // 每轮按顺序找第一个可满足的进程 (银行家常见顺序)
+                    }
+                }
+            }
+            if (!found) {
+                // 检查是否全部完成
+                let allFinished = finish.every(f => f === true);
+                if (allFinished) {
+                    steps.push({
+                        stepIndex: steps.length,
+                        work: [...work],
+                        selectedProcess: null,
+                        safeSeqSnapshot: [...safeSeq],
+                        finishedSnapshot: [...finish],
+                        isComplete: true,
+                        isDeadlock: false,
+                        message: `🎉 所有进程均能完成！安全序列为: ${safeSeq.map(p => `P${p}`).join(' → ')}`
+                    });
+                } else {
+                    steps.push({
+                        stepIndex: steps.length,
+                        work: [...work],
+                        selectedProcess: null,
+                        safeSeqSnapshot: [...safeSeq],
+                        finishedSnapshot: [...finish],
+                        isComplete: true,
+                        isDeadlock: true,
+                        message: `❌ 无法找到满足条件的进程，系统处于不安全状态，无法构成安全序列。剩余未完成进程: ${finish.map((v,i)=>v===false?`P${i}`:'').filter(s=>s).join(', ')}`
+                    });
+                }
+                break;
+            }
+        }
+        return steps;
+    }
+
+    // 清除逐步演示状态
+    function clearSafetySteps() {
+        safetySteps = [];
+        currentStepIndex = -1;
+        stepModeActive = false;
+        stepPrevBtn.disabled = true;
+        stepNextBtn.disabled = true;
+        stepResetBtn.disabled = true;
+        stepStartBtn.disabled = false;
+        stepWorkDisplay.innerHTML = `⚙️ 当前 Work = 尚未开始逐步检测`;
+        stepDetailMsg.innerHTML = `✨ 点击“开始逐步检测” 观察安全性检查过程`;
+        safeSequenceDisplay.innerHTML = `📋 安全序列 (已构建): 暂无`;
+    }
+
+    // 根据当前全局状态生成步骤并激活逐步模式
+    function startSafetyDemo() {
+        // 基于当前系统状态生成步骤
+        const steps = generateSafetySteps(currentMax, currentAllocation, currentNeed, currentAvailable);
+        if (steps.length === 0) {
+            stepDetailMsg.innerHTML = '⚠️ 无法生成步骤';
+            return;
+        }
+        safetySteps = steps;
+        currentStepIndex = 0;
+        stepModeActive = true;
+        stepStartBtn.disabled = true;
+        stepPrevBtn.disabled = true;
+        stepNextBtn.disabled = false;
+        stepResetBtn.disabled = false;
+        updateStepDisplay();
+    }
+
+    function updateStepDisplay() {
+        if (!stepModeActive || currentStepIndex < 0 || currentStepIndex >= safetySteps.length) return;
+        const step = safetySteps[currentStepIndex];
+        // 显示 work 向量
+        stepWorkDisplay.innerHTML = `💼 当前 Work = [ A:${step.work[0]}  B:${step.work[1]}  C:${step.work[2]} ]`;
+        let msg = step.message;
+        if (step.selectedProcess !== null && step.selectedProcess !== undefined) {
+            msg = `🔹 第 ${currentStepIndex} 步: 选中进程 P${step.selectedProcess} 满足需求 → 回收资源后 Work 更新。<br> ${step.message}`;
+        } else {
+            msg = `🔸 ${step.message}`;
+        }
+        stepDetailMsg.innerHTML = msg;
+        // 显示当前安全序列快照
+        if (step.safeSeqSnapshot && step.safeSeqSnapshot.length > 0) {
+            let seqStr = step.safeSeqSnapshot.map(p => `P${p}`).join(' → ');
+            safeSequenceDisplay.innerHTML = `📋 安全序列 (已构建): ${seqStr}`;
+        } else {
+            safeSequenceDisplay.innerHTML = `📋 安全序列 (已构建): 暂无进程`;
+        }
+        if (step.isComplete) {
+            if (step.isDeadlock) {
+                stepDetailMsg.innerHTML += `<span style="color:#b91c1c; font-weight:bold;"> ❌ 不安全状态，无安全序列！</span>`;
+                stepNextBtn.disabled = true;
+            } else {
+                stepDetailMsg.innerHTML += `<span style="color:#15803d; font-weight:bold;"> ✅ 安全序列查找完成！</span>`;
+                stepNextBtn.disabled = true;
+            }
+        } else {
+            // 如果还有下一步
+            if (currentStepIndex + 1 < safetySteps.length) stepNextBtn.disabled = false;
+            else stepNextBtn.disabled = true;
+        }
+        if (currentStepIndex > 0) stepPrevBtn.disabled = false;
+        else stepPrevBtn.disabled = true;
+    }
+
+    function nextStep() {
+        if (!stepModeActive) return;
+        if (currentStepIndex + 1 < safetySteps.length) {
+            currentStepIndex++;
+            updateStepDisplay();
+        } else {
+            stepNextBtn.disabled = true;
+        }
+    }
+
+    function prevStep() {
+        if (!stepModeActive) return;
+        if (currentStepIndex - 1 >= 0) {
+            currentStepIndex--;
+            updateStepDisplay();
+        }
+        if (currentStepIndex === 0) stepPrevBtn.disabled = true;
+    }
+
+    function resetStepDemo() {
+        if (!stepModeActive) return;
+        if (safetySteps.length > 0) {
+            currentStepIndex = 0;
+            updateStepDisplay();
+            stepPrevBtn.disabled = true;
+            stepNextBtn.disabled = (safetySteps.length === 1);
+        } else {
+            clearSafetySteps();
+        }
+    }
+
+    // ---------- 银行家算法请求处理 (尝试分配 + 安全性检测) ----------
+    function requestResources(pid, requestVec) {
+        // 合法性检查: Request <= Need
+        for (let j = 0; j < RESOURCE_TYPES; j++) {
+            if (requestVec[j] > currentNeed[pid][j]) {
+                reqMessage.innerText = `❌ 请求失败: 进程 P${pid} 请求数超过尚需 Need 值！`;
+                reqMessage.style.color = '#b91c1c';
+                return false;
+            }
+            if (requestVec[j] > currentAvailable[j]) {
+                reqMessage.innerText = `❌ 请求失败: 当前可用资源不足，P${pid} 需要等待。`;
+                reqMessage.style.color = '#b91c1c';
+                return false;
+            }
+        }
+        // 试探性分配
+        let newAllocation = copyMatrix(currentAllocation);
+        let newAvailable = [...currentAvailable];
+        for (let j = 0; j < RESOURCE_TYPES; j++) {
+            newAllocation[pid][j] += requestVec[j];
+            newAvailable[j] -= requestVec[j];
+        }
+        let newNeed = computeNeed(currentMax, newAllocation);
+        // 安全性检查 (完整检测)
+        const testSteps = generateSafetySteps(currentMax, newAllocation, newNeed, newAvailable);
+        const lastStep = testSteps[testSteps.length - 1];
+        const isSafe = lastStep.isComplete && !lastStep.isDeadlock;
+        if (isSafe) {
+            // 正式分配
+            currentAllocation = newAllocation;
+            currentAvailable = newAvailable;
+            currentNeed = newNeed;
+            renderTable();
+            renderAvailable();
+            reqMessage.innerText = `✅ 请求成功！系统分配资源给 P${pid}，且存在安全序列，避免死锁。`;
+            reqMessage.style.color = '#15803d';
+            clearSafetySteps();  // 状态改变，清除逐步演示
+            return true;
+        } else {
+            reqMessage.innerText = `⚠️ 请求拒绝: 分配后系统进入不安全状态，无安全序列，遵循银行家算法不分配。`;
+            reqMessage.style.color = '#b45309';
+            return false;
+        }
+    }
+
+    // 事件绑定
+    function bindEvents() {
+        resetSafeBtn.addEventListener('click', () => { resetToSafe(); clearSafetySteps(); });
+        resetUnsafeBtn.addEventListener('click', () => { resetToUnsafe(); clearSafetySteps(); });
+        stepStartBtn.addEventListener('click', startSafetyDemo);
+        stepNextBtn.addEventListener('click', nextStep);
+        stepPrevBtn.addEventListener('click', prevStep);
+        stepResetBtn.addEventListener('click', resetStepDemo);
+        sendRequestBtn.addEventListener('click', () => {
+            const pid = parseInt(reqProcessSelect.value);
+            const req = [parseInt(reqA.value) || 0, parseInt(reqB.value) || 0, parseInt(reqC.value) || 0];
+            if (req.some(v => v < 0)) {
+                reqMessage.innerText = '请求数值不能为负数';
+                return;
+            }
+            requestResources(pid, req);
+        });
+    }
+
+    // 初始化
+    function init() {
+        // 加载经典安全数据
+        updateGlobalState(MAX_MATRIX, ALLOCATION_MATRIX, INIT_AVAILABLE);
+        bindEvents();
+    }
+
+    init();
+</script>
+</body>
+</html>
