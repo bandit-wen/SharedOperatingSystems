@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>PV操作：读者-写者问题 (单步执行)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #eef2f5;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+
+        .container {
+            max-width: 1300px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 28px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.03);
+            padding: 1.6rem 1.8rem;
+            border: 1px solid #e2e9f0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1a3e50;
+            letter-spacing: -0.2px;
+            margin-bottom: 0.25rem;
+        }
+        .sub {
+            font-size: 0.75rem;
+            color: #54738f;
+            background: #eff3f8;
+            display: inline-block;
+            padding: 0.2rem 0.8rem;
+            border-radius: 30px;
+            margin-bottom: 1.5rem;
+            font-family: monospace;
+        }
+
+        .split-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.8rem;
+        }
+        .code-panel {
+            flex: 1.2;
+            min-width: 280px;
+        }
+        .state-panel {
+            flex: 0.9;
+            min-width: 260px;
+        }
+
+        .code-card {
+            background: #f8fafc;
+            border-radius: 24px;
+            padding: 1rem;
+            margin-bottom: 1.2rem;
+            border: 1px solid #e3ecf3;
+            position: relative;
+        }
+        .code-title {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 0.8rem;
+            padding-bottom: 0.3rem;
+            border-bottom: 2px solid #cbdde9;
+            display: inline-block;
+        }
+        .code-lines {
+            font-family: 'Fira Mono', 'Courier New', monospace;
+            font-size: 0.8rem;
+            line-height: 1.7;
+        }
+        .code-line {
+            padding: 0.2rem 0.5rem;
+            margin: 0.1rem 0;
+            border-radius: 12px;
+            transition: 0.05s linear;
+            white-space: pre-wrap;
+            cursor: default;
+        }
+        .code-line.active {
+            background: #fdebb3;
+            border-left: 3px solid #ca8a04;
+            font-weight: 500;
+        }
+        .step-indicator {
+            font-size: 0.7rem;
+            color: #7c9eb8;
+            margin-top: 0.5rem;
+            text-align: right;
+            border-top: 1px dashed #d4e2ec;
+            padding-top: 0.4rem;
+        }
+        .state-card {
+            background: #f8fafc;
+            border-radius: 24px;
+            padding: 1rem 1.2rem;
+            border: 1px solid #e3ecf3;
+        }
+        .data-area {
+            text-align: center;
+            margin-bottom: 1.2rem;
+        }
+        .data-box {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 0.8rem;
+            border: 1px solid #d0dfe9;
+            display: inline-block;
+            min-width: 120px;
+        }
+        .data-label {
+            font-size: 0.7rem;
+            color: #5b7f99;
+        }
+        .data-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1f5e7e;
+        }
+        .signal-group {
+            margin: 1rem 0;
+        }
+        .signal-item {
+            display: flex;
+            justify-content: space-between;
+            background: white;
+            padding: 0.4rem 1rem;
+            border-radius: 60px;
+            margin-bottom: 0.6rem;
+            border: 1px solid #e2eaf1;
+        }
+        .signal-name {
+            font-family: monospace;
+            font-weight: 600;
+            color: #1f5e7e;
+        }
+        .signal-val {
+            font-family: 'Fira Mono', monospace;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+        .button-bar {
+            display: flex;
+            gap: 1rem;
+            margin: 1rem 0 0.5rem;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            background: #ecf3f8;
+            border: none;
+            padding: 0.6rem 0;
+            border-radius: 60px;
+            font-family: monospace;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: 0.05s linear;
+        }
+        button.reader-btn {
+            background: #e1edfc;
+            color: #1663b5;
+        }
+        button.writer-btn {
+            background: #fef0dd;
+            color: #bc7a2c;
+        }
+        button.reset-btn {
+            background: #eef2f7;
+            color: #4f6f8a;
+            flex: 0.3;
+        }
+        button:active {
+            transform: scale(0.97);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .msg-area {
+            font-size: 0.7rem;
+            margin-top: 1rem;
+            padding: 0.5rem;
+            background: #fefce8;
+            border-radius: 20px;
+            text-align: center;
+            color: #8a6e2b;
+        }
+        footer {
+            font-size: 0.65rem;
+            text-align: center;
+            color: #8aa5bc;
+            margin-top: 1rem;
+        }
+        @media (max-width: 700px) {
+            .container { padding: 1rem; }
+            .code-line { font-size: 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>📚 读者-写者问题 (PV操作 · 单步执行)</h2>
+    <div class="sub">读者优先策略 | 可并发读，写者互斥 | 单步执行伪代码</div>
+
+    <div class="split-layout">
+        <!-- 左侧伪代码区 -->
+        <div class="code-panel">
+            <div class="code-card">
+                <div class="code-title">📖 读者 (Reader)</div>
+                <div class="code-lines" id="readerCode">
+                    <div class="code-line" data-step="0">// 读者进程</div>
+                    <div class="code-line" data-step="1">P(mutex);</div>
+                    <div class="code-line" data-step="2">    readCount++;</div>
+                    <div class="code-line" data-step="3">    if (readCount == 1)</div>
+                    <div class="code-line" data-step="4">        P(db);</div>
+                    <div class="code-line" data-step="5">V(mutex);</div>
+                    <div class="code-line" data-step="6">// 读数据 (无操作)</div>
+                    <div class="code-line" data-step="7">P(mutex);</div>
+                    <div class="code-line" data-step="8">    readCount--;</div>
+                    <div class="code-line" data-step="9">    if (readCount == 0)</div>
+                    <div class="code-line" data-step="10">        V(db);</div>
+                    <div class="code-line" data-step="11">V(mutex);</div>
+                </div>
+                <div class="step-indicator" id="readerStepInfo">⏩ 当前步骤: 等待执行</div>
+            </div>
+            <div class="code-card">
+                <div class="code-title">✍️ 写者 (Writer)</div>
+                <div class="code-lines" id="writerCode">
+                    <div class="code-line" data-step="0">// 写者进程</div>
+                    <div class="code-line" data-step="1">P(db);</div>
+                    <div class="code-line" data-step="2">// 写数据 (修改共享资源)</div>
+                    <div class="code-line" data-step="3">V(db);</div>
+                </div>
+                <div class="step-indicator" id="writerStepInfo">⏩ 当前步骤: 等待执行</div>
+            </div>
+        </div>
+
+        <!-- 右侧状态区 -->
+        <div class="state-panel">
+            <div class="state-card">
+                <div class="data-area">
+                    <div class="data-box">
+                        <div class="data-label">📄 共享数据 (data)</div>
+                        <div class="data-value" id="sharedData">0</div>
+                    </div>
+                </div>
+                <div class="signal-group">
+                    <div class="signal-item"><span class="signal-name">📖 readCount (读者数)</span><span class="signal-val" id="readCountVal">0</span></div>
+                    <div class="signal-item"><span class="signal-name">🔒 mutex (保护readCount)</span><span class="signal-val" id="mutexVal">1</span></div>
+                    <div class="signal-item"><span class="signal-name">📚 db (读写互斥)</span><span class="signal-val" id="dbVal">1</span></div>
+                </div>
+                <div class="button-bar">
+                    <button id="readerBtn" class="reader-btn">📖 读者执行一步</button>
+                    <button id="writerBtn" class="writer-btn">✍️ 写者执行一步</button>
+                    <button id="resetBtn" class="reset-btn">⟳ 重置</button>
+                </div>
+                <div class="msg-area" id="infoMsg">点击按钮，单步执行伪代码行</div>
+            </div>
+        </div>
+    </div>
+    <footer>💡 单步执行模式：每次点击执行一条语句。读者优先：第一个读者加锁db，最后一个读者解锁；写者必须等待无读者/写者。可观察readCount变化。</footer>
+</div>
+
+<script>
+    // ---------- 读者-写者模型 (读者优先) ----------
+    let sharedData = 0;          // 共享数据
+    let readCount = 0;           // 当前读者数量
+    let semMutex = 1;            // 保护 readCount 的信号量
+    let semDb = 1;               // 读写互斥信号量 (控制对数据区的访问)
+
+    // 读者与写者的步骤索引
+    let readerStep = 0;          // 0~11 (共12步)
+    let writerStep = 0;          // 0~3 (共4步)
+
+    // DOM 元素
+    const sharedDataSpan = document.getElementById('sharedData');
+    const readCountSpan = document.getElementById('readCountVal');
+    const mutexSpan = document.getElementById('mutexVal');
+    const dbSpan = document.getElementById('dbVal');
+    const readerBtn = document.getElementById('readerBtn');
+    const writerBtn = document.getElementById('writerBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const infoMsgDiv = document.getElementById('infoMsg');
+    const readerStepInfo = document.getElementById('readerStepInfo');
+    const writerStepInfo = document.getElementById('writerStepInfo');
+
+    // 代码行元素
+    const readerLines = document.querySelectorAll('#readerCode .code-line');
+    const writerLines = document.querySelectorAll('#writerCode .code-line');
+
+    // 独立高亮读者
+    function highlightReaderOnly(step) {
+        readerLines.forEach(line => line.classList.remove('active'));
+        if (step >= 0 && step < readerLines.length) {
+            readerLines[step].classList.add('active');
+        }
+    }
+
+    // 独立高亮写者
+    function highlightWriterOnly(step) {
+        writerLines.forEach(line => line.classList.remove('active'));
+        if (step >= 0 && step < writerLines.length) {
+            writerLines[step].classList.add('active');
+        }
+    }
+
+    // 更新UI
+    function updateUI() {
+        sharedDataSpan.innerText = sharedData;
+        readCountSpan.innerText = readCount;
+        mutexSpan.innerText = semMutex;
+        dbSpan.innerText = semDb;
+        readerStepInfo.innerHTML = `⏩ 下一步: 第 ${readerStep+1} 步 / ${readerLines.length}步`;
+        writerStepInfo.innerHTML = `⏩ 下一步: 第 ${writerStep+1} 步 / ${writerLines.length}步`;
+        // 高亮当前待执行步骤
+        highlightReaderOnly(readerStep);
+        highlightWriterOnly(writerStep);
+    }
+
+    function setMessage(msg, isError = false) {
+        infoMsgDiv.innerHTML = msg;
+        infoMsgDiv.style.background = isError ? '#ffe6e5' : '#fefce8';
+        setTimeout(() => {
+            if (infoMsgDiv.innerHTML === msg) {
+                infoMsgDiv.style.background = '#fefce8';
+            }
+        }, 1800);
+    }
+
+    // 重置系统
+    function resetSystem() {
+        sharedData = 0;
+        readCount = 0;
+        semMutex = 1;
+        semDb = 1;
+        readerStep = 0;
+        writerStep = 0;
+        updateUI();
+        setMessage("🔄 系统已重置: data=0, readCount=0, mutex=1, db=1");
+    }
+
+    // ---------- 读者单步执行 ----------
+    function readerStepFunc() {
+        if (readerStep >= readerLines.length) readerStep = 0;
+        const step = readerStep;
+        let blocked = false;
+        let msg = "";
+
+        switch (step) {
+            case 0: // 注释
+                msg = "读者: 开始执行读者进程";
+                readerStep = 1;
+                break;
+            case 1: // P(mutex)
+                if (semMutex <= 0) {
+                    msg = "⚠️ P(mutex) 失败，互斥锁被占用，读者等待";
+                    blocked = true;
+                    setMessage(msg, true);
+                    updateUI();
+                    return;
+                }
+                semMutex--;
+                msg = "执行 P(mutex): 保护 readCount → mutex = " + semMutex;
+                readerStep = 2;
+                break;
+            case 2: // readCount++
+                readCount++;
+                msg = "readCount++ → 当前读者数 = " + readCount;
+                readerStep = 3;
+                break;
+            case 3: // if (readCount == 1)
+                msg = "判断 readCount == 1 ? " + (readCount === 1 ? "是" : "否");
+                readerStep = 4;
+                break;
+            case 4: // P(db) 仅当第一个读者
+                if (readCount === 1) {
+                    if (semDb <= 0) {
+                        msg = "❌ P(db) 失败，数据库被写者或其他读者阻塞（理论上读者优先，但写者可能占用）";
+                        blocked = true;
+                        setMessage(msg, true);
+                        updateUI();
+                        return;
+                    }
+                    semDb--;
+                    msg = "第一个读者执行 P(db): 锁定数据库 → db = " + semDb;
+                } else {
+                    msg = "不是第一个读者，跳过 P(db)";
+                }
+                readerStep = 5;
+                break;
+            case 5: // V(mutex)
+                semMutex++;
+                msg = "执行 V(mutex): 释放 readCount 保护 → mutex = " + semMutex;
+                readerStep = 6;
+                break;
+            case 6: // 读数据 (模拟)
+                msg = "读者读取数据: 当前 data = " + sharedData;
+                readerStep = 7;
+                break;
+            case 7: // P(mutex) 准备离开
+                if (semMutex <= 0) {
+                    msg = "⚠️ P(mutex) 失败，读者等待";
+                    blocked = true;
+                    setMessage(msg, true);
+                    updateUI();
+                    return;
+                }
+                semMutex--;
+                msg = "执行 P(mutex): 保护 readCount → mutex = " + semMutex;
+                readerStep = 8;
+                break;
+            case 8: // readCount--
+                readCount--;
+                msg = "readCount-- → 当前读者数 = " + readCount;
+                readerStep = 9;
+                break;
+            case 9: // if (readCount == 0)
+                msg = "判断 readCount == 0 ? " + (readCount === 0 ? "是" : "否");
+                readerStep = 10;
+                break;
+            case 10: // V(db) 仅当最后一个读者
+                if (readCount === 0) {
+                    semDb++;
+                    msg = "最后一个读者执行 V(db): 释放数据库锁 → db = " + semDb;
+                } else {
+                    msg = "不是最后一个读者，跳过 V(db)";
+                }
+                readerStep = 11;
+                break;
+            case 11: // V(mutex)
+                semMutex++;
+                msg = "执行 V(mutex): 释放 readCount 保护 → mutex = " + semMutex;
+                readerStep = 0;   // 重置步骤，完成一次读者操作
+                break;
+            default:
+                msg = "读者: 无效步骤，重置";
+                readerStep = 0;
+        }
+        updateUI();
+        setMessage(msg, blocked);
+    }
+
+    // ---------- 写者单步执行 ----------
+    function writerStepFunc() {
+        if (writerStep >= writerLines.length) writerStep = 0;
+        const step = writerStep;
+        let blocked = false;
+        let msg = "";
+
+        switch (step) {
+            case 0: // 注释
+                msg = "写者: 开始执行写者进程";
+                writerStep = 1;
+                break;
+            case 1: // P(db)
+                if (semDb <= 0) {
+                    msg = "❌ P(db) 失败，数据库被读者或写者占用，写者阻塞";
+                    blocked = true;
+                    setMessage(msg, true);
+                    updateUI();
+                    return;
+                }
+                semDb--;
+                msg = "执行 P(db): 请求写权限 → db = " + semDb;
+                writerStep = 2;
+                break;
+            case 2: // 写数据
+                sharedData++;
+                msg = "写者修改数据: data++ → 新 data = " + sharedData;
+                writerStep = 3;
+                break;
+            case 3: // V(db)
+                semDb++;
+                msg = "执行 V(db): 释放写权限 → db = " + semDb;
+                writerStep = 0;   // 重置步骤，完成一次写操作
+                break;
+            default:
+                msg = "写者: 无效步骤，重置";
+                writerStep = 0;
+        }
+        updateUI();
+        setMessage(msg, blocked);
+    }
+
+    // 重置所有步骤（不清数据）
+    function resetSteps() {
+        readerStep = 0;
+        writerStep = 0;
+        updateUI();
+        setMessage("步骤指针已重置到进程开头，但共享状态保留。");
+    }
+
+    // 事件绑定
+    readerBtn.addEventListener('click', readerStepFunc);
+    writerBtn.addEventListener('click', writerStepFunc);
+    resetBtn.addEventListener('click', resetSystem);
+
+    // 初始化
+    function init() {
+        resetSystem();
+    }
+    init();
+</script>
+</body>
+</html>

@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>V操作(signal)动画演示 | 信号量 · 唤醒队列</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #eef2f5;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 32px;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.05);
+            padding: 1.8rem 2rem;
+            border: 1px solid #e2e9f0;
+        }
+
+        h2 {
+            font-size: 1.6rem;
+            font-weight: 600;
+            color: #1a3e50;
+            letter-spacing: -0.2px;
+        }
+
+        .sub {
+            font-size: 0.8rem;
+            color: #54738f;
+            background: #eff3f8;
+            display: inline-block;
+            padding: 0.2rem 0.9rem;
+            border-radius: 30px;
+            margin-top: 0.3rem;
+            margin-bottom: 1.6rem;
+            font-family: monospace;
+        }
+
+        .core-area {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.2rem;
+            margin-bottom: 1.8rem;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sem-box {
+            background: #f8fafc;
+            border-radius: 28px;
+            padding: 0.8rem 1.5rem;
+            text-align: center;
+            border: 1px solid #e4ecf3;
+            min-width: 150px;
+        }
+
+        .sem-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            color: #6c8ea8;
+            font-weight: 600;
+        }
+
+        .sem-value {
+            font-size: 3rem;
+            font-weight: 700;
+            font-family: 'Fira Mono', monospace;
+            color: #1f5e7e;
+            line-height: 1;
+        }
+
+        .queue-box {
+            background: #ffffff;
+            border-radius: 28px;
+            padding: 0.6rem 1.2rem;
+            border: 1px solid #dce5ec;
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .queue-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #5b7f99;
+        }
+
+        .queue-list {
+            font-family: 'Fira Mono', monospace;
+            font-size: 0.9rem;
+            color: #c27d2e;
+            margin-top: 5px;
+            word-break: break-all;
+        }
+
+        .controls {
+            background: #f9fbfd;
+            border-radius: 24px;
+            padding: 1rem 1.2rem;
+            margin: 1rem 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 60px;
+            border: 1px solid #e2eaf1;
+        }
+
+        .control-group label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #2c5a7a;
+        }
+
+        input[type="number"] {
+            width: 70px;
+            padding: 0.2rem 0.4rem;
+            border-radius: 20px;
+            border: 1px solid #cbdde9;
+            text-align: center;
+        }
+
+        button {
+            background: #ecf3f8;
+            border: none;
+            padding: 0.5rem 1.2rem;
+            border-radius: 60px;
+            font-family: monospace;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.05s linear;
+            font-size: 0.85rem;
+        }
+
+        button.primary {
+            background: #ca8a04;
+            color: white;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        button.primary:active {
+            transform: scale(0.97);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .steps-panel {
+            background: #f7fafc;
+            border-radius: 24px;
+            padding: 1rem 1.2rem;
+            margin: 1rem 0;
+            border: 1px solid #e6edf4;
+        }
+
+        .step-timeline {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 1rem;
+        }
+
+        .step {
+            background: #eef2f7;
+            border-radius: 40px;
+            padding: 0.3rem 1rem;
+            font-size: 0.75rem;
+            font-family: monospace;
+            color: #4f6f8a;
+            transition: all 0.1s;
+        }
+
+        .step.active {
+            background: #ca8a04;
+            color: white;
+        }
+
+        .log-container {
+            margin-top: 1rem;
+            border-top: 1px solid #e2ecf2;
+            padding-top: 1rem;
+        }
+
+        .log-header {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #3a6e8a;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .log-list {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 0.8rem;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Fira Mono', monospace;
+            font-size: 0.75rem;
+            border: 1px solid #e2eaf1;
+        }
+
+        .log-entry {
+            padding: 0.3rem 0;
+            border-bottom: 1px solid #f0f4f8;
+            color: #2c5a7a;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .reset-btn {
+            background: #eef2f7;
+            color: #4f6f8a;
+        }
+
+        footer {
+            font-size: 0.65rem;
+            text-align: center;
+            color: #8aa5bc;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>🔓 V操作 (signal) 内部逻辑动画</h2>
+    <div class="sub">信号量加法 · 条件唤醒 · 移出队列 | 每次点击执行完整V操作</div>
+
+    <div class="core-area">
+        <div class="sem-box">
+            <div class="sem-label">📟 信号量 (S)</div>
+            <div class="sem-value" id="semValue">1</div>
+        </div>
+        <div class="queue-box">
+            <div class="queue-title">⏳ 阻塞队列 (等待该信号量)</div>
+            <div class="queue-list" id="queueList">无</div>
+            <div style="font-size:0.65rem; color:#8ba3b5; margin-top:4px;">队列长度 = |min(S,0)|</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>🎛️ 信号量初值</label>
+            <input type="number" id="initSem" min="-3" max="5" value="1" step="1">
+            <button id="applyInitBtn" class="reset-btn">设置并重置</button>
+        </div>
+        <button id="vActionBtn" class="primary">🔺 执行一次完整的 V 操作</button>
+    </div>
+
+    <div class="steps-panel">
+        <div class="step-timeline">
+            <div class="step">① 读取信号量</div>
+            <div class="step">② 做加法 (S = S+1)</div>
+            <div class="step">③ 判断 S ≤ 0 ?</div>
+            <div class="step">④ 唤醒队列 / 无唤醒</div>
+        </div>
+        <div class="log-area" id="currentStepMsg" style="background:#ffffff; border-radius:20px; padding:0.8rem 1rem; font-family:monospace; border-left:4px solid #ca8a04;">
+            💡 点击「执行一次完整的V操作」查看逐步演示。
+        </div>
+    </div>
+
+    <div class="log-container">
+        <div class="log-header">
+            📋 操作日志（每次V操作的四步记录）
+            <button id="clearLogBtn" class="reset-btn" style="padding:0.1rem 0.6rem; font-size:0.65rem;">清空日志</button>
+        </div>
+        <div class="log-list" id="logList">
+            <div class="log-entry">✨ 就绪，可开始演示。</div>
+        </div>
+    </div>
+
+    <div class="explain" style="background:#f7fafc; border-radius:20px; padding:0.8rem 1rem; font-size:0.75rem; margin-top:0.5rem;">
+        📌 <strong>V(signal) 操作内涵</strong>：每次调用都会执行 <code>S.value++</code>，若结果 ≤ 0 则从等待队列中唤醒一个进程（移出队列，使其变为就绪）。<br>
+        🔹 唤醒的进程将重新获得CPU，继续执行被P操作阻塞的后续代码。这是经典的“释放资源”操作。<br>
+        💡 <strong>提示：</strong> 当您设置信号量初值为负数时，系统会自动在阻塞队列中添加对应数量的进程（如 S=-2 时队列会有两个进程）。
+    </div>
+    <footer>每点击一次代表一个进程释放资源（或执行V操作），自动展示完整V原子操作（速度固定1000ms/步）。</footer>
+</div>
+
+<script>
+    // ---------- 核心状态 ----------
+    let semValue = 1;               // 当前信号量值
+    let blockedQueue = [];          // 阻塞队列，存储进程名称（如 "P1", "P2"）
+    let nextPid = 1;                // 用于生成进程名称的序号（仅用于展示）
+
+    // 动画控制
+    let isAnimating = false;
+    const STEP_DELAY = 1000;        // 固定1000ms
+
+    // DOM 元素
+    const semValueSpan = document.getElementById('semValue');
+    const queueListSpan = document.getElementById('queueList');
+    const currentStepMsgDiv = document.getElementById('currentStepMsg');
+    const vActionBtn = document.getElementById('vActionBtn');
+    const applyInitBtn = document.getElementById('applyInitBtn');
+    const initSemInput = document.getElementById('initSem');
+    const clearLogBtn = document.getElementById('clearLogBtn');
+    const logListDiv = document.getElementById('logList');
+    const stepDivs = document.querySelectorAll('.step');
+
+    function updateUI() {
+        semValueSpan.innerText = semValue;
+        if (blockedQueue.length === 0) {
+            queueListSpan.innerText = '无';
+        } else {
+            queueListSpan.innerText = '[' + blockedQueue.join(', ') + ']';
+        }
+    }
+
+    function highlightStep(index) {
+        stepDivs.forEach((div, i) => {
+            if (i === index) div.classList.add('active');
+            else div.classList.remove('active');
+        });
+    }
+
+    function clearHighlight() {
+        stepDivs.forEach(div => div.classList.remove('active'));
+    }
+
+    function addLogEntry(message) {
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        const timestamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit', second:'2-digit' });
+        entry.innerText = `[${timestamp}] ${message}`;
+        logListDiv.appendChild(entry);
+        logListDiv.scrollTop = logListDiv.scrollHeight;
+    }
+
+    function clearLog() {
+        logListDiv.innerHTML = '<div class="log-entry">📋 日志已清空，新操作将记录在此。</div>';
+    }
+
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // 核心：重置系统，根据信号量初值自动填充阻塞队列
+    function resetSystem(newInitValue) {
+        if (isAnimating) return;
+        semValue = newInitValue;
+        // 根据信号量初值自动构建阻塞队列
+        blockedQueue = [];
+        if (semValue < 0) {
+            const queueSize = -semValue;
+            // 生成连续的进程名，从 P1 开始
+            for (let i = 0; i < queueSize; i++) {
+                blockedQueue.push(`P${nextPid++}`);
+            }
+        } else {
+            // 信号量非负时，队列应为空
+            blockedQueue = [];
+        }
+        // 注意：nextPid 已在上面的循环中自增，但如果信号量从负数改为正数，nextPid 可能过大，但无影响
+        // 为了更清晰，当队列清空时，可以重置 nextPid？但为了保持连续性，保留原序号也没问题。
+        // 但为了避免编号过大，可以重置 nextPid = 1 重新开始？但可能会与之前的日志混淆，为了简洁，我们不重置 nextPid。
+        // 但用户重置时，我们希望编号也从1开始比较清晰，所以手动重置 nextPid = 1。
+        nextPid = 1;
+        // 重新生成（因为上面循环用了旧的 nextPid 值，重置后重新生成）
+        if (semValue < 0) {
+            blockedQueue = [];
+            for (let i = 0; i < -semValue; i++) {
+                blockedQueue.push(`P${nextPid++}`);
+            }
+        }
+        updateUI();
+        clearHighlight();
+        currentStepMsgDiv.innerHTML = `🔄 系统已重置：信号量 = ${semValue}，阻塞队列 ${blockedQueue.length > 0 ? '已填充 ' + blockedQueue.length + ' 个进程' : '为空'}。可以开始执行V操作。`;
+        addLogEntry(`🔁 系统重置: 信号量=${semValue}，阻塞队列=[${blockedQueue.join(',') || '空'}]，进程编号重置为1。`);
+    }
+
+    function applyInitAndReset() {
+        let newVal = parseInt(initSemInput.value, 10);
+        if (isNaN(newVal)) newVal = 1;
+        newVal = Math.min(5, Math.max(-3, newVal));
+        initSemInput.value = newVal;
+        resetSystem(newVal);
+    }
+
+    // 执行完整的一次V操作
+    async function executeVOperation() {
+        if (isAnimating) {
+            addLogEntry("⏳ 操作进行中，请稍后再试");
+            return;
+        }
+        isAnimating = true;
+        vActionBtn.disabled = true;
+        applyInitBtn.disabled = true;
+
+        const currentOpId = `V${nextPid++}`;
+        const oldValue = semValue;
+        
+        addLogEntry(`🚀 执行 V 操作 (${currentOpId}) 开始，当前信号量=${oldValue}，队列=[${blockedQueue.join(',') || '空'}]`);
+
+        highlightStep(0);
+        const step1Msg = `📖 步骤① 读取信号量 → 当前 S.value = ${oldValue}`;
+        currentStepMsgDiv.innerHTML = step1Msg;
+        addLogEntry(step1Msg);
+        await delay(STEP_DELAY);
+        
+        highlightStep(1);
+        semValue++;
+        const step2Msg = `➕ 步骤② 信号量加1 → ${oldValue} → ${semValue}`;
+        currentStepMsgDiv.innerHTML = step2Msg;
+        addLogEntry(step2Msg);
+        updateUI();
+        await delay(STEP_DELAY);
+        
+        highlightStep(2);
+        const after = semValue;
+        let step3Msg = '';
+        if (after <= 0) {
+            step3Msg = `🧐 步骤③ 判断 S.value ≤ 0 ? → 当前 ${after} ≤ 0，条件成立，需要从等待队列中唤醒一个进程。`;
+        } else {
+            step3Msg = `👍 步骤③ 判断 S.value ≤ 0 ? → 当前 ${after} > 0，条件不成立，无需唤醒。`;
+        }
+        currentStepMsgDiv.innerHTML = step3Msg;
+        addLogEntry(step3Msg);
+        await delay(STEP_DELAY);
+        
+        highlightStep(3);
+        let step4Msg = '';
+        let wokenProcess = null;
+        if (after <= 0 && blockedQueue.length > 0) {
+            wokenProcess = blockedQueue.shift();
+            step4Msg = `🚀 步骤④ 唤醒进程 → 从队列头部唤醒 ${wokenProcess}。该进程将变为就绪，继续执行P操作后的代码。队列剩余: [${blockedQueue.join(', ') || '空'}]。`;
+            currentStepMsgDiv.innerHTML = step4Msg;
+            addLogEntry(step4Msg);
+            updateUI();
+        } else {
+            if (after <= 0 && blockedQueue.length === 0) {
+                step4Msg = `ℹ️ 步骤④ 无唤醒 → 虽然 S.value = ${after} ≤ 0，但等待队列为空，无需操作。`;
+            } else {
+                step4Msg = `✅ 步骤④ 无唤醒 → S.value = ${after} > 0，没有进程需要被唤醒。`;
+            }
+            currentStepMsgDiv.innerHTML = step4Msg;
+            addLogEntry(step4Msg);
+        }
+        await delay(STEP_DELAY);
+        
+        clearHighlight();
+        const finalMsg = `✔ V操作 (${currentOpId}) 执行完毕，当前信号量=${semValue}，队列=[${blockedQueue.join(',') || '空'}]`;
+        currentStepMsgDiv.innerHTML = finalMsg;
+        addLogEntry(finalMsg);
+        if (wokenProcess) {
+            addLogEntry(`✨ 进程 ${wokenProcess} 已被唤醒，将重新尝试进入临界区。`);
+        }
+        
+        isAnimating = false;
+        vActionBtn.disabled = false;
+        applyInitBtn.disabled = false;
+    }
+
+    // 事件绑定
+    vActionBtn.addEventListener('click', executeVOperation);
+    applyInitBtn.addEventListener('click', applyInitAndReset);
+    clearLogBtn.addEventListener('click', clearLog);
+    initSemInput.addEventListener('change', applyInitAndReset);
+
+    function init() {
+        resetSystem(1);
+        initSemInput.value = 1;
+        clearLog();
+        addLogEntry("✨ V操作演示就绪，信号量初值=1，阻塞队列为空。");
+        addLogEntry("💡 提示：您可以设置负的初值（如-2），系统会自动在队列中生成2个阻塞进程，然后执行V操作即可看到唤醒效果。");
+    }
+    init();
+</script>
+</body>
+</html>

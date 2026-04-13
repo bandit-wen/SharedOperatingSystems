@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>PV操作：哲学家就餐问题 (单步执行)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #eef2f5;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+
+        .container {
+            max-width: 1300px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 28px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.03);
+            padding: 1.6rem 1.8rem;
+            border: 1px solid #e2e9f0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1a3e50;
+            letter-spacing: -0.2px;
+            margin-bottom: 0.25rem;
+        }
+        .sub {
+            font-size: 0.75rem;
+            color: #54738f;
+            background: #eff3f8;
+            display: inline-block;
+            padding: 0.2rem 0.8rem;
+            border-radius: 30px;
+            margin-bottom: 1.5rem;
+            font-family: monospace;
+        }
+
+        .split-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.8rem;
+        }
+        .code-panel {
+            flex: 1;
+            min-width: 260px;
+        }
+        .state-panel {
+            flex: 1.2;
+            min-width: 320px;
+        }
+
+        .code-card {
+            background: #f8fafc;
+            border-radius: 24px;
+            padding: 1rem;
+            margin-bottom: 1.2rem;
+            border: 1px solid #e3ecf3;
+            position: relative;
+        }
+        .code-title {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 0.8rem;
+            padding-bottom: 0.3rem;
+            border-bottom: 2px solid #cbdde9;
+            display: inline-block;
+        }
+        .code-lines {
+            font-family: 'Fira Mono', 'Courier New', monospace;
+            font-size: 0.8rem;
+            line-height: 1.7;
+        }
+        .code-line {
+            padding: 0.2rem 0.5rem;
+            margin: 0.1rem 0;
+            border-radius: 12px;
+            transition: 0.05s linear;
+            white-space: pre-wrap;
+            cursor: default;
+        }
+        .code-line.active {
+            background: #fdebb3;
+            border-left: 3px solid #ca8a04;
+            font-weight: 500;
+        }
+        .step-indicator {
+            font-size: 0.7rem;
+            color: #7c9eb8;
+            margin-top: 0.5rem;
+            text-align: right;
+            border-top: 1px dashed #d4e2ec;
+            padding-top: 0.4rem;
+        }
+        .state-card {
+            background: #f8fafc;
+            border-radius: 24px;
+            padding: 1rem 1.2rem;
+            border: 1px solid #e3ecf3;
+        }
+        .table {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            margin: 0 auto 1rem;
+            background: #f0e6d2;
+            border-radius: 50%;
+            border: 3px solid #c8b28b;
+            box-shadow: 0 8px 12px rgba(0,0,0,0.05);
+        }
+        .philosopher {
+            position: absolute;
+            width: 70px;
+            height: 70px;
+            background: #ffffff;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.8rem;
+            border: 2px solid #9bb7d0;
+            transition: 0.05s;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            cursor: pointer;
+        }
+        .philosopher.thinking { background: #fff6e0; border-color: #e6c87e; }
+        .philosopher.hungry { background: #ffe0b5; border-color: #f5a623; }
+        .philosopher.eating { background: #c8e6d9; border-color: #2c9a6e; }
+        .chopstick {
+            position: absolute;
+            width: 14px;
+            height: 70px;
+            background: #c9a87b;
+            border-radius: 20px;
+            transform-origin: top center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: 0.05s;
+        }
+        .chopstick.used {
+            background: #e67e22;
+            box-shadow: 0 0 0 2px #f39c12;
+        }
+        .signal-group {
+            margin: 1rem 0;
+        }
+        .signal-item {
+            display: flex;
+            justify-content: space-between;
+            background: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 60px;
+            margin-bottom: 0.4rem;
+            border: 1px solid #e2eaf1;
+            font-size: 0.75rem;
+        }
+        .signal-name {
+            font-family: monospace;
+            font-weight: 600;
+            color: #1f5e7e;
+        }
+        .signal-val {
+            font-family: 'Fira Mono', monospace;
+            font-weight: 700;
+        }
+        .button-bar {
+            display: flex;
+            gap: 0.6rem;
+            margin: 1rem 0 0.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        button.phil-btn {
+            background: #ecf3f8;
+            border: none;
+            padding: 0.4rem 0.8rem;
+            border-radius: 40px;
+            font-family: monospace;
+            font-weight: 600;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: 0.05s linear;
+        }
+        button.phil-btn:nth-child(1) { background: #ffe0b5; }
+        button.phil-btn:nth-child(2) { background: #ffd0a0; }
+        button.phil-btn:nth-child(3) { background: #ffc090; }
+        button.phil-btn:nth-child(4) { background: #ffb080; }
+        button.phil-btn:nth-child(5) { background: #ffa070; }
+        button.reset-btn {
+            background: #eef2f7;
+            color: #4f6f8a;
+            padding: 0.4rem 1rem;
+            font-size: 0.75rem;
+        }
+        button:active {
+            transform: scale(0.97);
+        }
+        .msg-area {
+            font-size: 0.7rem;
+            margin-top: 1rem;
+            padding: 0.5rem;
+            background: #fefce8;
+            border-radius: 20px;
+            text-align: center;
+            color: #8a6e2b;
+        }
+        footer {
+            font-size: 0.65rem;
+            text-align: center;
+            color: #8aa5bc;
+            margin-top: 1rem;
+        }
+        @media (max-width: 700px) {
+            .container { padding: 1rem; }
+            .code-line { font-size: 0.7rem; }
+            .philosopher { width: 50px; height: 50px; font-size: 0.6rem; }
+            .chopstick { height: 50px; width: 10px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>🍽️ 哲学家就餐问题 (PV操作 · 单步执行)</h2>
+    <div class="sub">服务生方案 | 最多4人同时拿筷子 | 避免死锁</div>
+
+    <div class="split-layout">
+        <!-- 左侧伪代码区 -->
+        <div class="code-panel">
+            <div class="code-card">
+                <div class="code-title">🧠 哲学家进程 (通用)</div>
+                <div class="code-lines" id="philCode">
+                    <div class="code-line" data-step="0">while (true) {</div>
+                    <div class="code-line" data-step="1">    思考();</div>
+                    <div class="code-line" data-step="2">    P(room);       // 限制最多4人同时拿筷子</div>
+                    <div class="code-line" data-step="3">    P(chopstick[i]);        // 拿起左边筷子</div>
+                    <div class="code-line" data-step="4">    P(chopstick[(i+1)%5]);  // 拿起右边筷子</div>
+                    <div class="code-line" data-step="5">    进餐();</div>
+                    <div class="code-line" data-step="6">    V(chopstick[(i+1)%5]);  // 放下右边筷子</div>
+                    <div class="code-line" data-step="7">    V(chopstick[i]);        // 放下左边筷子</div>
+                    <div class="code-line" data-step="8">    V(room);       // 释放一个名额</div>
+                    <div class="code-line" data-step="9">}</div>
+                </div>
+                <div class="step-indicator" id="globalStepInfo">点击哲学家按钮执行单步</div>
+            </div>
+        </div>
+
+        <!-- 右侧状态区 -->
+        <div class="state-panel">
+            <div class="state-card">
+                <div class="table" id="tableContainer">
+                    <!-- 动态绘制哲学家和筷子 -->
+                </div>
+                <div class="signal-group">
+                    <div class="signal-item"><span class="signal-name">🍽️ room (最大并发数)</span><span class="signal-val" id="roomVal">4</span></div>
+                    <div class="signal-item"><span class="signal-name">🥢 chopstick[0]</span><span class="signal-val" id="ch0">1</span></div>
+                    <div class="signal-item"><span class="signal-name">🥢 chopstick[1]</span><span class="signal-val" id="ch1">1</span></div>
+                    <div class="signal-item"><span class="signal-name">🥢 chopstick[2]</span><span class="signal-val" id="ch2">1</span></div>
+                    <div class="signal-item"><span class="signal-name">🥢 chopstick[3]</span><span class="signal-val" id="ch3">1</span></div>
+                    <div class="signal-item"><span class="signal-name">🥢 chopstick[4]</span><span class="signal-val" id="ch4">1</span></div>
+                </div>
+                <div class="button-bar" id="philButtons">
+                    <!-- 动态生成哲学家按钮 -->
+                </div>
+                <div class="button-bar">
+                    <button id="resetBtn" class="reset-btn">⟳ 重置所有状态</button>
+                </div>
+                <div class="msg-area" id="infoMsg">点击哲学家按钮，单步执行其下一条语句</div>
+            </div>
+        </div>
+    </div>
+    <footer>💡 单步执行模式：每次点击一个哲学家，执行其当前步骤。使用信号量 room 限制同时就餐人数≤4，避免死锁。筷子初始均为1。</footer>
+</div>
+
+<script>
+    // ---------- 哲学家就餐模型 ----------
+    const N = 5;
+    // 筷子信号量数组 (0~4)
+    let chopsticks = [1, 1, 1, 1, 1];
+    // 限制同时就餐人数 (服务生方案)
+    let room = 4;
+
+    // 哲学家状态: 'thinking', 'hungry' (等待拿筷子), 'eating'
+    let states = ['thinking', 'thinking', 'thinking', 'thinking', 'thinking'];
+    // 每个哲学家的步骤指针 (0~9，对应伪代码行)
+    let steps = [0, 0, 0, 0, 0];
+
+    // 辅助: 检查当前哲学家能否执行P操作 (资源是否足够)
+    function canPChopstick(idx) {
+        return chopsticks[idx] > 0;
+    }
+    function canPRoom() {
+        return room > 0;
+    }
+
+    // 执行哲学家 i 的当前步骤
+    function stepPhilosopher(i) {
+        let step = steps[i];
+        let msg = "";
+        let blocked = false;
+        let left = i;
+        let right = (i + 1) % N;
+
+        switch (step) {
+            case 0: // while 开始
+                msg = `哲学家 ${i} 进入循环`;
+                steps[i] = 1;
+                break;
+            case 1: // 思考
+                if (states[i] !== 'thinking') {
+                    // 如果之前处于eating或hungry，重置思考不合理，但逻辑上应该没问题，强制同步
+                    states[i] = 'thinking';
+                }
+                msg = `哲学家 ${i} 正在思考`;
+                steps[i] = 2;
+                break;
+            case 2: // P(room)
+                if (!canPRoom()) {
+                    msg = `哲学家 ${i} 申请 room 失败 (当前 room=0)，阻塞等待其他哲学家结束就餐`;
+                    blocked = true;
+                    states[i] = 'hungry';
+                    break;
+                }
+                room--;
+                msg = `哲学家 ${i} 执行 P(room) → room = ${room}`;
+                steps[i] = 3;
+                states[i] = 'hungry';
+                break;
+            case 3: // P(chopstick[left])
+                if (!canPChopstick(left)) {
+                    msg = `哲学家 ${i} 拿左边筷子 ${left} 失败 (筷子被占用)`;
+                    blocked = true;
+                    states[i] = 'hungry';
+                    break;
+                }
+                chopsticks[left]--;
+                msg = `哲学家 ${i} 拿起左边筷子 ${left} → chop[${left}] = ${chopsticks[left]}`;
+                steps[i] = 4;
+                break;
+            case 4: // P(chopstick[right])
+                if (!canPChopstick(right)) {
+                    msg = `哲学家 ${i} 拿右边筷子 ${right} 失败 (筷子被占用)`;
+                    blocked = true;
+                    states[i] = 'hungry';
+                    // 注意：已经拿了左边筷子，需要回滚左边？根据PV规范，如果P右边失败应释放左边并阻塞？
+                    // 简化：不自动回滚，保持左边占用，等待下次重试？这会导致死锁风险。为了教学，我们采用经典做法：失败时释放左边并重新开始。
+                    // 但我们的单步执行设计，如果这一步失败，应该让哲学家保持在步骤4，但需要释放左边筷子并回退到步骤2或3。
+                    // 为了避免复杂，我们在这里做回滚：释放左边，并回退步骤到2 (重新申请room)
+                    chopsticks[left]++;
+                    steps[i] = 2;
+                    msg = `哲学家 ${i} 拿右边筷子失败，释放左边筷子，回到步骤2重新申请`;
+                    break;
+                }
+                chopsticks[right]--;
+                msg = `哲学家 ${i} 拿起右边筷子 ${right} → chop[${right}] = ${chopsticks[right]}`;
+                steps[i] = 5;
+                states[i] = 'eating';
+                break;
+            case 5: // 进餐
+                msg = `哲学家 ${i} 开始进餐 🍝`;
+                steps[i] = 6;
+                break;
+            case 6: // V(chopstick[right])
+                chopsticks[right]++;
+                msg = `哲学家 ${i} 放下右边筷子 ${right} → chop[${right}] = ${chopsticks[right]}`;
+                steps[i] = 7;
+                break;
+            case 7: // V(chopstick[left])
+                chopsticks[left]++;
+                msg = `哲学家 ${i} 放下左边筷子 ${left} → chop[${left}] = ${chopsticks[left]}`;
+                steps[i] = 8;
+                break;
+            case 8: // V(room)
+                room++;
+                msg = `哲学家 ${i} 执行 V(room) → room = ${room}`;
+                steps[i] = 9;
+                states[i] = 'thinking';
+                break;
+            case 9: // 循环结束，回到步骤0
+                msg = `哲学家 ${i} 完成一轮，回到循环开始`;
+                steps[i] = 0;
+                break;
+            default:
+                msg = `哲学家 ${i} 步骤异常，重置步骤`;
+                steps[i] = 0;
+        }
+        updateUI();
+        setMessage(msg, blocked);
+        // 如果阻塞，高亮代码行不变；否则高亮下一行
+        highlightCodeLine(steps[i]);
+    }
+
+    // 高亮当前活跃哲学家的代码行（显示通用伪代码）
+    function highlightCodeLine(step) {
+        const lines = document.querySelectorAll('#philCode .code-line');
+        lines.forEach(line => line.classList.remove('active'));
+        if (step >= 0 && step < lines.length) {
+            lines[step].classList.add('active');
+        }
+    }
+
+    // 更新UI：圆桌布局、信号量显示、哲学家状态
+    function updateUI() {
+        // 更新信号量显示
+        document.getElementById('roomVal').innerText = room;
+        for (let i = 0; i < N; i++) {
+            document.getElementById(`ch${i}`).innerText = chopsticks[i];
+        }
+        // 更新哲学家卡片样式和位置 (重新绘制)
+        drawTable();
+    }
+
+    function drawTable() {
+        const container = document.getElementById('tableContainer');
+        container.innerHTML = '';
+        const centerX = 50, centerY = 50, radius = 38; // 百分比
+        // 绘制哲学家
+        for (let i = 0; i < N; i++) {
+            const angle = (i * 72 - 90) * Math.PI / 180; // 起始角度-90度让0号在上方
+            const x = centerX + radius * Math.cos(angle);
+            const y = centerY + radius * Math.sin(angle);
+            const philDiv = document.createElement('div');
+            philDiv.className = `philosopher ${states[i]}`;
+            philDiv.style.left = `calc(${x}% - 35px)`;
+            philDiv.style.top = `calc(${y}% - 35px)`;
+            philDiv.innerText = `${i}\n${states[i] === 'eating' ? '🍝' : (states[i] === 'hungry' ? '⏳' : '💭')}`;
+            philDiv.style.position = 'absolute';
+            philDiv.style.textAlign = 'center';
+            container.appendChild(philDiv);
+        }
+        // 绘制筷子 (在哲学家之间)
+        for (let i = 0; i < N; i++) {
+            const angle = (i * 72 - 90 + 36) * Math.PI / 180; // 两哲学家中间
+            const x = centerX + radius * 0.85 * Math.cos(angle);
+            const y = centerY + radius * 0.85 * Math.sin(angle);
+            const chopDiv = document.createElement('div');
+            chopDiv.className = `chopstick ${chopsticks[i] === 0 ? 'used' : ''}`;
+            chopDiv.style.left = `calc(${x}% - 7px)`;
+            chopDiv.style.top = `calc(${y}% - 35px)`;
+            chopDiv.style.position = 'absolute';
+            chopDiv.style.transform = `rotate(${angle * 180 / Math.PI + 90}deg)`;
+            container.appendChild(chopDiv);
+        }
+    }
+
+    function setMessage(msg, isError = false) {
+        const msgDiv = document.getElementById('infoMsg');
+        msgDiv.innerHTML = msg;
+        msgDiv.style.background = isError ? '#ffe6e5' : '#fefce8';
+        setTimeout(() => {
+            if (msgDiv.innerHTML === msg) msgDiv.style.background = '#fefce8';
+        }, 2000);
+    }
+
+    // 重置所有状态
+    function resetSystem() {
+        chopsticks = [1, 1, 1, 1, 1];
+        room = 4;
+        states = ['thinking', 'thinking', 'thinking', 'thinking', 'thinking'];
+        steps = [0, 0, 0, 0, 0];
+        updateUI();
+        highlightCodeLine(0);
+        setMessage("🔄 系统已重置：所有筷子可用，room=4，哲学家思考中");
+    }
+
+    // 生成哲学家按钮
+    function createButtons() {
+        const btnBar = document.getElementById('philButtons');
+        btnBar.innerHTML = '';
+        for (let i = 0; i < N; i++) {
+            const btn = document.createElement('button');
+            btn.className = 'phil-btn';
+            btn.innerText = `哲学家 ${i}`;
+            btn.addEventListener('click', () => stepPhilosopher(i));
+            btnBar.appendChild(btn);
+        }
+    }
+
+    // 初始化
+    function init() {
+        createButtons();
+        resetSystem();
+        document.getElementById('resetBtn').addEventListener('click', resetSystem);
+        highlightCodeLine(0);
+    }
+    init();
+</script>
+</body>
+</html>

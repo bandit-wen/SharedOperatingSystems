@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>PV操作：互斥访问临界资源（CR）</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #f4f7fb;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            padding: 2rem 1rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #1a2c3e;
+        }
+
+        /* 极简主容器：干净、白底、微阴影 */
+        .demo {
+            max-width: 1000px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            padding: 1.8rem 2rem;
+            transition: all 0.1s;
+        }
+
+        /* 标题区 */
+        .title-section {
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #e2edf2;
+            padding-bottom: 0.75rem;
+        }
+        h1 {
+            font-size: 1.6rem;
+            font-weight: 600;
+            letter-spacing: -0.2px;
+            color: #0f2b3b;
+            margin-bottom: 0.25rem;
+        }
+        .sub {
+            font-size: 0.85rem;
+            color: #3c6e8f;
+            background: #eef3fa;
+            display: inline-block;
+            padding: 0.2rem 0.8rem;
+            border-radius: 20px;
+            font-family: monospace;
+        }
+
+        /* 核心资源栏：三块信息干净排列 */
+        .resource-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.2rem;
+            background: #f9fbfd;
+            border: 1px solid #e0e9f0;
+            border-radius: 18px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 2rem;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .info-card {
+            flex: 1;
+            min-width: 130px;
+        }
+        .info-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+            color: #5c7f96;
+            margin-bottom: 0.25rem;
+        }
+        .info-value {
+            font-size: 1.8rem;
+            font-weight: 600;
+            font-family: 'Fira Mono', monospace;
+            color: #1f4968;
+            line-height: 1.2;
+        }
+        .info-value small {
+            font-size: 0.8rem;
+            font-weight: normal;
+            color: #6c8faa;
+        }
+        .waiting-list {
+            font-family: 'Fira Mono', monospace;
+            font-size: 1rem;
+            background: #ffffff;
+            padding: 0.3rem 0.8rem;
+            border-radius: 30px;
+            display: inline-block;
+            border: 1px solid #dce5ec;
+            color: #1f6392;
+        }
+
+        /* 双进程卡片布局：干净简洁 */
+        .process-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-bottom: 1.8rem;
+        }
+        .process-card {
+            flex: 1;
+            background: #ffffff;
+            border: 1px solid #e3ebf2;
+            border-radius: 20px;
+            padding: 1.2rem 1.4rem 1.6rem;
+            transition: 0.08s linear;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+        }
+        /* 状态区分只用细微左边框和背景微调，避免花哨 */
+        .process-card.waiting {
+            background: #fffdf7;
+            border-left: 4px solid #f5b042;
+        }
+        .process-card.active {
+            background: #f6fef9;
+            border-left: 4px solid #2c9a6e;
+        }
+        .process-card.idle {
+            border-left: 4px solid #cbdde9;
+        }
+        .proc-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        .proc-name {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #1f4a6e;
+        }
+        .status-tag {
+            font-size: 0.7rem;
+            font-weight: 500;
+            padding: 0.2rem 0.7rem;
+            border-radius: 30px;
+            background: #ecf3f8;
+            color: #2c5a7a;
+        }
+        .status-tag.in-cs {
+            background: #dff0e8;
+            color: #1b7e54;
+        }
+        .status-tag.wait {
+            background: #feedd9;
+            color: #c27d2e;
+        }
+        /* 按钮组干净 */
+        .button-group {
+            display: flex;
+            gap: 0.8rem;
+            margin-top: 1.2rem;
+        }
+        button {
+            flex: 1;
+            background: #eef2f7;
+            border: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            font-family: 'Fira Mono', monospace;
+            padding: 0.6rem 0;
+            border-radius: 40px;
+            cursor: pointer;
+            transition: 0.05s linear;
+            color: #1f4662;
+        }
+        button.p-btn {
+            background: #e1edfc;
+            color: #1663b5;
+        }
+        button.v-btn {
+            background: #fef0dd;
+            color: #bc7a2c;
+        }
+        button:hover {
+            filter: brightness(0.96);
+        }
+        button:active {
+            transform: scale(0.97);
+        }
+        button:disabled {
+            opacity: 0.4;
+            transform: none;
+            cursor: not-allowed;
+            filter: grayscale(0.05);
+        }
+        .reset-btn {
+            background: #eef2f7;
+            color: #4d6a83;
+            width: auto;
+            padding: 0.5rem 1.4rem;
+            font-size: 0.8rem;
+            margin-top: 0;
+        }
+        .reset-wrap {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 1.2rem;
+        }
+        /* 简洁规则说明 */
+        .rule-note {
+            background: #f8fafc;
+            border-radius: 18px;
+            padding: 0.8rem 1.2rem;
+            font-size: 0.8rem;
+            color: #2c5778;
+            border: 1px solid #e3ecf2;
+            margin-top: 1.5rem;
+        }
+        .rule-note p {
+            margin: 0.3rem 0;
+            line-height: 1.4;
+        }
+        .code {
+            font-family: 'Fira Mono', monospace;
+            background: #ecf3f8;
+            padding: 0.1rem 0.3rem;
+            border-radius: 8px;
+            font-size: 0.75rem;
+        }
+        hr {
+            margin: 0.8rem 0;
+            border: none;
+            border-top: 1px solid #e2ebf2;
+        }
+        footer {
+            font-size: 0.7rem;
+            text-align: center;
+            color: #8ba3b5;
+            margin-top: 1.2rem;
+        }
+        @media (max-width: 650px) {
+            .demo { padding: 1.2rem; }
+            .info-value { font-size: 1.4rem; }
+            .proc-name { font-size: 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="demo">
+    <div class="title-section">
+        <h1>🔐 PV操作 · 临界资源互斥 (CR)</h1>
+        <div class="sub">信号量 mutex 初值 = 1  |  P申请资源，V释放资源 | 成对匹配保证互斥</div>
+    </div>
+
+    <!-- 状态栏: 简洁展示 CR占用 / 信号量 / 阻塞队列 -->
+    <div class="resource-bar">
+        <div class="info-card">
+            <div class="info-label">临界资源 CR</div>
+            <div class="info-value" id="crOwnerDisplay">⚪ 空闲</div>
+        </div>
+        <div class="info-card">
+            <div class="info-label">信号量 mutex</div>
+            <div class="info-value" id="semValueDisplay">1</div>
+        </div>
+        <div class="info-card">
+            <div class="info-label">阻塞队列 (等待CR)</div>
+            <div class="waiting-list" id="waitQueueDisplay">无</div>
+        </div>
+    </div>
+
+    <!-- 双进程区域 -->
+    <div class="process-row" id="processContainer"></div>
+
+    <!-- 重置按钮 + 简洁提示 -->
+    <div class="reset-wrap">
+        <button id="resetSystemBtn" class="reset-btn">⟳ 重置系统 (信号量=1, 清空队列)</button>
+    </div>
+
+    <div class="rule-note">
+        <p>📌 <strong>PV操作逻辑（互斥模型）</strong><br>
+        • <span class="code">P(mutex)</span> : 申请临界资源 → mutex.value-- ，若 value < 0 则进程阻塞进入等待队列。<br>
+        • <span class="code">V(mutex)</span> : 释放临界资源 → mutex.value++ ，若 value ≤ 0 则唤醒队列首进程，使其进入临界区。<br>
+        • <strong>互斥规则</strong> : 任何时刻最多一个进程处于临界区(CR被占用)，其他进程必须阻塞等待。<br>
+        • <strong>成对匹配</strong> : 进入临界区后必须执行一次V操作释放，演示中只有<strong>临界区内进程</strong>的V按钮可用。</p>
+    </div>
+    <footer>点击进程「P操作」申请CR，进入临界区后「V操作」释放。若CR被占用，进程自动阻塞；释放时唤醒等待者。</footer>
+</div>
+
+<script>
+    // ---------- 简洁PV核心模型 ----------
+    // 进程状态: 'idle' (空闲), 'in_cs' (在临界区), 'waiting' (阻塞等待)
+    const processes = {
+        A: { id: 'A', name: '进程 A', status: 'idle' },
+        B: { id: 'B', name: '进程 B', status: 'idle' }
+    };
+
+    // 信号量 (mutex) 初值 = 1 表示一个CR可用
+    let semaphore = {
+        value: 1,            // 信号量整数值
+        waitingQueue: []     // 存储等待的进程id (FIFO)
+    };
+
+    let currentOwner = null;   // 当前占用CR的进程id, null表示空闲
+
+    // ---------- 辅助更新UI (干净, 无动画闪烁) ----------
+    function updateUI() {
+        // 1. 更新信号量数值
+        const semSpan = document.getElementById('semValueDisplay');
+        if (semSpan) semSpan.innerText = semaphore.value;
+        
+        // 2. 更新CR占用显示
+        const crSpan = document.getElementById('crOwnerDisplay');
+        if (crSpan) {
+            if (currentOwner === null) crSpan.innerText = '⚪ 空闲';
+            else crSpan.innerText = `🔴 被 ${currentOwner} 占用`;
+        }
+        
+        // 3. 更新等待队列显示
+        const queueSpan = document.getElementById('waitQueueDisplay');
+        if (queueSpan) {
+            if (semaphore.waitingQueue.length === 0) queueSpan.innerText = '无';
+            else queueSpan.innerText = semaphore.waitingQueue.map(pid => `[${pid}]`).join(' → ');
+        }
+        
+        // 4. 更新两个进程卡片的外观及按钮状态
+        for (let [pid, proc] of Object.entries(processes)) {
+            const card = document.getElementById(`card-${pid}`);
+            if (!card) continue;
+            // 移除旧样式类
+            card.classList.remove('waiting', 'active', 'idle');
+            if (proc.status === 'waiting') card.classList.add('waiting');
+            else if (proc.status === 'in_cs') card.classList.add('active');
+            else card.classList.add('idle');
+            
+            // 更新状态文本
+            const statusSpan = card.querySelector('.status-tag');
+            if (statusSpan) {
+                statusSpan.classList.remove('in-cs', 'wait');
+                if (proc.status === 'in_cs') {
+                    statusSpan.innerText = '✅ 在临界区';
+                    statusSpan.classList.add('in-cs');
+                } else if (proc.status === 'waiting') {
+                    statusSpan.innerText = '⏳ 等待中';
+                    statusSpan.classList.add('wait');
+                } else {
+                    statusSpan.innerText = '💤 空闲';
+                }
+            }
+            
+            // 按钮启用规则: P按钮仅当 status === 'idle' 可用; V按钮仅当 status === 'in_cs' 可用
+            const pBtn = card.querySelector('.p-btn');
+            const vBtn = card.querySelector('.v-btn');
+            if (pBtn) pBtn.disabled = (proc.status !== 'idle');
+            if (vBtn) vBtn.disabled = (proc.status !== 'in_cs');
+        }
+    }
+    
+    // ---------- P操作 (申请临界资源) ----------
+    function pOperation(pid) {
+        const proc = processes[pid];
+        // 严格校验: 只有空闲进程可以执行P
+        if (proc.status !== 'idle') {
+            console.warn(`${pid} 状态为 ${proc.status}，无法执行P操作`);
+            return false;
+        }
+        
+        // 执行P原语: 信号量减一
+        semaphore.value--;
+        
+        if (semaphore.value < 0) {
+            // 资源不足，进程阻塞，进入等待队列尾部
+            proc.status = 'waiting';
+            semaphore.waitingQueue.push(pid);
+            // 当前临界区拥有者不变 (依然被其他进程占用)
+            updateUI();
+            console.log(`⛔ ${pid} P操作: 信号量=${semaphore.value} < 0，进入阻塞队列`);
+            return false;
+        } else {
+            // 成功获得临界资源
+            proc.status = 'in_cs';
+            currentOwner = pid;
+            updateUI();
+            console.log(`✅ ${pid} P操作成功，获得CR，信号量=${semaphore.value}`);
+            return true;
+        }
+    }
+    
+    // ---------- V操作 (释放临界资源) ----------
+    function vOperation(pid) {
+        const proc = processes[pid];
+        // 只有临界区内的进程才能释放
+        if (proc.status !== 'in_cs') {
+            console.warn(`${pid} 不在临界区，无法执行V操作`);
+            return false;
+        }
+        
+        // 执行V原语: 信号量加一
+        semaphore.value++;
+        
+        // 当前进程释放CR，离开临界区
+        proc.status = 'idle';
+        currentOwner = null;
+        
+        // 判断是否需要唤醒等待队列中的进程 (经典条件: value <= 0 且有等待进程)
+        if (semaphore.value <= 0 && semaphore.waitingQueue.length > 0) {
+            // 唤醒队首进程
+            const wokePid = semaphore.waitingQueue.shift();
+            const wokeProc = processes[wokePid];
+            if (wokeProc && wokeProc.status === 'waiting') {
+                // 被唤醒进程直接获得临界资源（不需要再减信号量，因为之前P已减过，现在资源分配给它）
+                wokeProc.status = 'in_cs';
+                currentOwner = wokePid;
+                console.log(`🚀 V操作唤醒 ${wokePid}，${wokePid} 进入临界区`);
+            } else {
+                console.warn(`唤醒异常: ${wokePid} 状态不是等待`);
+            }
+        }
+        updateUI();
+        console.log(`🔓 ${pid} V操作释放CR，信号量=${semaphore.value}`);
+        return true;
+    }
+    
+    // ---------- 重置全部状态 ----------
+    function resetSystem() {
+        // 重置进程状态
+        for (let pid of ['A', 'B']) {
+            processes[pid].status = 'idle';
+        }
+        // 重置信号量
+        semaphore.value = 1;
+        semaphore.waitingQueue = [];
+        currentOwner = null;
+        updateUI();
+        console.log("🔄 系统已重置，信号量=1，等待队列清空，所有进程空闲");
+    }
+    
+    // ---------- 动态生成进程卡片 (保持简洁结构) ----------
+    function buildProcessCards() {
+        const container = document.getElementById('processContainer');
+        if (!container) return;
+        container.innerHTML = '';
+        
+        const pidList = ['A', 'B'];
+        for (let pid of pidList) {
+            const proc = processes[pid];
+            const card = document.createElement('div');
+            card.className = 'process-card idle';
+            card.id = `card-${pid}`;
+            
+            // 内部结构简洁干净
+            card.innerHTML = `
+                <div class="proc-header">
+                    <span class="proc-name">⚙️ ${proc.name}</span>
+                    <span class="status-tag idle">💤 空闲</span>
+                </div>
+                <div class="button-group">
+                    <button class="p-btn">P操作 (申请CR)</button>
+                    <button class="v-btn">V操作 (释放CR)</button>
+                </div>
+                <div style="font-size:0.7rem; text-align:center; margin-top:10px; opacity:0.6;">
+                    临界区前P &nbsp;|&nbsp; 临界区后V
+                </div>
+            `;
+            container.appendChild(card);
+            
+            // 绑定按钮事件
+            const pBtn = card.querySelector('.p-btn');
+            const vBtn = card.querySelector('.v-btn');
+            pBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // 再次确认状态空闲才执行P
+                if (processes[pid].status === 'idle') {
+                    pOperation(pid);
+                } else {
+                    // 轻提示无效果（避免混乱）
+                    const badge = card.querySelector('.status-tag');
+                    if (badge) badge.style.opacity = '0.7';
+                    setTimeout(() => { if(badge) badge.style.opacity = '1'; }, 150);
+                }
+            });
+            vBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (processes[pid].status === 'in_cs') {
+                    vOperation(pid);
+                } else {
+                    const badge = card.querySelector('.status-tag');
+                    if (badge) badge.style.opacity = '0.7';
+                    setTimeout(() => { if(badge) badge.style.opacity = '1'; }, 150);
+                }
+            });
+        }
+        updateUI();
+    }
+    
+    // 初始化与重置按钮绑定
+    document.addEventListener('DOMContentLoaded', () => {
+        buildProcessCards();
+        const resetBtn = document.getElementById('resetSystemBtn');
+        if (resetBtn) resetBtn.addEventListener('click', resetSystem);
+        updateUI();
+    });
+    
+    // 确保在动态重绘时没有问题（不需要额外闪烁）
+</script>
+</body>
+</html>

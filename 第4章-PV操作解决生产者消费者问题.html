@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>PV操作：生产者-消费者 (单步执行 · 多缓冲区)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #eef2f5;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+
+        .container {
+            max-width: 1300px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 28px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.03);
+            padding: 1.6rem 1.8rem;
+            border: 1px solid #e2e9f0;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1a3e50;
+            letter-spacing: -0.2px;
+            margin-bottom: 0.25rem;
+        }
+        .sub {
+            font-size: 0.75rem;
+            color: #54738f;
+            background: #eff3f8;
+            display: inline-block;
+            padding: 0.2rem 0.8rem;
+            border-radius: 30px;
+            margin-bottom: 1.5rem;
+            font-family: monospace;
+        }
+
+        .split-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.8rem;
+        }
+        .code-panel {
+            flex: 1.2;
+            min-width: 260px;
+        }
+        .state-panel {
+            flex: 0.9;
+            min-width: 260px;
+        }
+
+        .code-card {
+            background: #f8fafc;
+            border-radius: 24px;
+            padding: 1rem;
+            margin-bottom: 1.2rem;
+            border: 1px solid #e3ecf3;
+            position: relative;
+        }
+        .code-title {
+            font-weight: 600;
+            font-size: 1rem;
+            margin-bottom: 0.8rem;
+            padding-bottom: 0.3rem;
+            border-bottom: 2px solid #cbdde9;
+            display: inline-block;
+        }
+        .code-lines {
+            font-family: 'Fira Mono', 'Courier New', monospace;
+            font-size: 0.8rem;
+            line-height: 1.7;
+        }
+        .code-line {
+            padding: 0.2rem 0.5rem;
+            margin: 0.1rem 0;
+            border-radius: 12px;
+            transition: 0.05s linear;
+            white-space: pre-wrap;
+            cursor: default;
+        }
+        .code-line.active {
+            background: #fdebb3;
+            border-left: 3px solid #ca8a04;
+            font-weight: 500;
+        }
+        .step-indicator {
+            font-size: 0.7rem;
+            color: #7c9eb8;
+            margin-top: 0.5rem;
+            text-align: right;
+            border-top: 1px dashed #d4e2ec;
+            padding-top: 0.4rem;
+        }
+        .state-card {
+            background: #f8fafc;
+            border-radius: 24px;
+            padding: 1rem 1.2rem;
+            border: 1px solid #e3ecf3;
+        }
+        .buffer-area {
+            text-align: center;
+            margin-bottom: 1.2rem;
+        }
+        .buffer-slots {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .buffer-slot {
+            width: 50px;
+            height: 50px;
+            background: #ffffff;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            border: 2px solid #d0dfe9;
+            transition: 0.05s;
+        }
+        .buffer-slot.empty {
+            background: #fffaf0;
+            border-color: #f3d9a4;
+            color: #b88b2e;
+        }
+        .buffer-slot.full {
+            background: #e2f3ea;
+            border-color: #89bfa6;
+            color: #2a7553;
+        }
+        .signal-group {
+            margin: 1rem 0;
+        }
+        .signal-item {
+            display: flex;
+            justify-content: space-between;
+            background: white;
+            padding: 0.4rem 1rem;
+            border-radius: 60px;
+            margin-bottom: 0.6rem;
+            border: 1px solid #e2eaf1;
+        }
+        .signal-name {
+            font-family: monospace;
+            font-weight: 600;
+            color: #1f5e7e;
+        }
+        .signal-val {
+            font-family: 'Fira Mono', monospace;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+        .buffer-size-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 1rem;
+            justify-content: center;
+        }
+        .buffer-size-control label {
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        input {
+            width: 60px;
+            padding: 0.2rem;
+            border-radius: 20px;
+            border: 1px solid #cbdde9;
+            text-align: center;
+        }
+        .button-bar {
+            display: flex;
+            gap: 1rem;
+            margin: 1rem 0 0.5rem;
+            flex-wrap: wrap;
+        }
+        button {
+            flex: 1;
+            background: #ecf3f8;
+            border: none;
+            padding: 0.6rem 0;
+            border-radius: 60px;
+            font-family: monospace;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: 0.05s linear;
+        }
+        button.prod-btn {
+            background: #e1edfc;
+            color: #1663b5;
+        }
+        button.cons-btn {
+            background: #fef0dd;
+            color: #bc7a2c;
+        }
+        button.reset-btn {
+            background: #eef2f7;
+            color: #4f6f8a;
+            flex: 0.3;
+        }
+        button:active {
+            transform: scale(0.97);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .msg-area {
+            font-size: 0.7rem;
+            margin-top: 1rem;
+            padding: 0.5rem;
+            background: #fefce8;
+            border-radius: 20px;
+            text-align: center;
+            color: #8a6e2b;
+        }
+        footer {
+            font-size: 0.65rem;
+            text-align: center;
+            color: #8aa5bc;
+            margin-top: 1rem;
+        }
+        @media (max-width: 700px) {
+            .container { padding: 1rem; }
+            .code-line { font-size: 0.7rem; }
+            .buffer-slot { width: 40px; height: 40px; font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>📦 生产者-消费者问题 (PV操作 · 单步执行)</h2>
+    <div class="sub">搞不懂，坚持来上课，完了还不学！想啥呢</div>
+
+    <div class="split-layout">
+        <!-- 左侧伪代码区 -->
+        <div class="code-panel">
+            <div class="code-card">
+                <div class="code-title">🏭 生产者 (Producer)</div>
+                <div class="code-lines" id="producerCode">
+                    <div class="code-line" data-step="0">while (true) {</div>
+                    <div class="code-line" data-step="1">    // 生产数据 item</div>
+                    <div class="code-line" data-step="2">    P(Sin);              // 申请一个空槽位</div>
+                    <div class="code-line" data-step="3">    P(mutex);            // 互斥访问缓冲区</div>
+                    <div class="code-line" data-step="4">    // 放入产品到 buffer</div>
+                    <div class="code-line" data-step="5">    V(mutex);            // 释放互斥锁</div>
+                    <div class="code-line" data-step="6">    V(Sout);             // 已占用产品数+1</div>
+                    <div class="code-line" data-step="7">}</div>
+                </div>
+                <div class="step-indicator" id="prodStepInfo">⏩ 当前步骤: 等待执行</div>
+            </div>
+            <div class="code-card">
+                <div class="code-title">🍽️ 消费者 (Consumer)</div>
+                <div class="code-lines" id="consumerCode">
+                    <div class="code-line" data-step="0">while (true) {</div>
+                    <div class="code-line" data-step="1">    P(Sout);             // 申请一个产品</div>
+                    <div class="code-line" data-step="2">    P(mutex);            // 互斥访问缓冲区</div>
+                    <div class="code-line" data-step="3">    // 从 buffer 取出产品</div>
+                    <div class="code-line" data-step="4">    V(mutex);            // 释放互斥锁</div>
+                    <div class="code-line" data-step="5">    V(Sin);              // 空槽位+1</div>
+                    <div class="code-line" data-step="6">    // 消费产品</div>
+                    <div class="code-line" data-step="7">}</div>
+                </div>
+                <div class="step-indicator" id="consStepInfo">⏩ 当前步骤: 等待执行</div>
+            </div>
+        </div>
+
+        <!-- 右侧状态区 -->
+        <div class="state-panel">
+            <div class="state-card">
+                <div class="buffer-area">
+                    <div class="buffer-size-control">
+                        <label>📊 缓冲区数量:</label>
+                        <input type="number" id="bufferSizeInput" min="1" max="6" value="3" step="1">
+                        <button id="applySizeBtn" class="reset-btn" style="padding:0.2rem 0.8rem;">应用并重置</button>
+                    </div>
+                    <div id="bufferSlotsContainer" class="buffer-slots"></div>
+                </div>
+                <div class="signal-group">
+                    <div class="signal-item"><span class="signal-name">📤 Sin (可放槽位)</span><span class="signal-val" id="SinVal">1</span></div>
+                    <div class="signal-item"><span class="signal-name">📥 Sout (可取产品数)</span><span class="signal-val" id="SoutVal">0</span></div>
+                    <div class="signal-item"><span class="signal-name">🔒 mutex (互斥)</span><span class="signal-val" id="mutexVal">1</span></div>
+                </div>
+                <div class="button-bar">
+                    <button id="produceBtn" class="prod-btn">➕ 生产者执行一步</button>
+                    <button id="consumeBtn" class="cons-btn">➖ 消费者执行一步</button>
+                    <button id="resetBtn" class="reset-btn">⟳ 重置</button>
+                </div>
+                <div class="msg-area" id="infoMsg">点击按钮，单步执行伪代码行</div>
+            </div>
+        </div>
+    </div>
+    <footer>💡 单步执行模式：每次点击只执行一条语句。可调整缓冲区大小（1~6），环形缓冲区动态显示。</footer>
+</div>
+
+<script>
+    // ---------- 多缓冲区模型 ----------
+    let buffer = [];            // 数组，每个元素 null 或产品
+    let bufferSize = 3;        // 默认3
+    let inPtr = 0;             // 生产者下次放入的位置
+    let outPtr = 0;            // 消费者下次取出的位置
+    let semSin = bufferSize;   // 可用空槽位
+    let semSout = 0;           // 已占用产品数
+    let semMutex = 1;          // 互斥信号量
+
+    // 生产者与消费者各自的步骤索引 (0~7)
+    let prodStep = 0;
+    let consStep = 0;
+
+    // DOM 元素
+    const bufferSlotsContainer = document.getElementById('bufferSlotsContainer');
+    const SinSpan = document.getElementById('SinVal');
+    const SoutSpan = document.getElementById('SoutVal');
+    const mutexSpan = document.getElementById('mutexVal');
+    const produceBtn = document.getElementById('produceBtn');
+    const consumeBtn = document.getElementById('consumeBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const applySizeBtn = document.getElementById('applySizeBtn');
+    const bufferSizeInput = document.getElementById('bufferSizeInput');
+    const infoMsgDiv = document.getElementById('infoMsg');
+    const prodStepInfo = document.getElementById('prodStepInfo');
+    const consStepInfo = document.getElementById('consStepInfo');
+
+    // 获取所有代码行
+    const prodLines = document.querySelectorAll('#producerCode .code-line');
+    const consLines = document.querySelectorAll('#consumerCode .code-line');
+
+    // 独立高亮生产者
+    function highlightProdOnly(step) {
+        prodLines.forEach(line => line.classList.remove('active'));
+        if (step >= 0 && step < prodLines.length) {
+            prodLines[step].classList.add('active');
+        }
+    }
+
+    // 独立高亮消费者
+    function highlightConsOnly(step) {
+        consLines.forEach(line => line.classList.remove('active'));
+        if (step >= 0 && step < consLines.length) {
+            consLines[step].classList.add('active');
+        }
+    }
+
+    // 更新缓冲区UI
+    function updateBufferUI() {
+        bufferSlotsContainer.innerHTML = '';
+        for (let i = 0; i < bufferSize; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'buffer-slot';
+            if (buffer[i] !== null) {
+                slot.classList.add('full');
+                slot.innerText = '📦';
+            } else {
+                slot.classList.add('empty');
+                slot.innerText = '○';
+            }
+            bufferSlotsContainer.appendChild(slot);
+        }
+    }
+
+    // 更新所有UI
+    function updateUI() {
+        SinSpan.innerText = semSin;
+        SoutSpan.innerText = semSout;
+        mutexSpan.innerText = semMutex;
+        updateBufferUI();
+        prodStepInfo.innerHTML = `⏩ 下一步: 第 ${prodStep+1} 步 / 8步`;
+        consStepInfo.innerHTML = `⏩ 下一步: 第 ${consStep+1} 步 / 8步`;
+        // 高亮各自当前步骤（不互相干扰）
+        highlightProdOnly(prodStep);
+        highlightConsOnly(consStep);
+    }
+
+    function setMessage(msg, isError = false) {
+        infoMsgDiv.innerHTML = msg;
+        infoMsgDiv.style.background = isError ? '#ffe6e5' : '#fefce8';
+        setTimeout(() => {
+            if (infoMsgDiv.innerHTML === msg) {
+                infoMsgDiv.style.background = '#fefce8';
+            }
+        }, 1800);
+    }
+
+    // 重置系统（保留缓冲区大小）
+    function resetSystem() {
+        // 重新初始化缓冲区数组
+        buffer = new Array(bufferSize).fill(null);
+        inPtr = 0;
+        outPtr = 0;
+        semSin = bufferSize;
+        semSout = 0;
+        semMutex = 1;
+        prodStep = 0;
+        consStep = 0;
+        updateUI();
+        setMessage(`🔄 系统已重置: 缓冲区大小=${bufferSize}, 全部为空, Sin=${semSin}, Sout=${semSout}, mutex=1`);
+    }
+
+    // 改变缓冲区大小
+    function changeBufferSize(newSize) {
+        if (newSize === bufferSize) {
+            resetSystem();
+            return;
+        }
+        bufferSize = Math.min(6, Math.max(1, newSize));
+        bufferSizeInput.value = bufferSize;
+        // 重置所有数据
+        buffer = new Array(bufferSize).fill(null);
+        inPtr = 0;
+        outPtr = 0;
+        semSin = bufferSize;
+        semSout = 0;
+        semMutex = 1;
+        prodStep = 0;
+        consStep = 0;
+        updateUI();
+        setMessage(`✨ 缓冲区大小改为 ${bufferSize}，系统已重置。`);
+    }
+
+    // ---------- 生产者单步执行 ----------
+    function producerStep() {
+        if (prodStep >= prodLines.length) prodStep = 0;
+        const step = prodStep;
+        let blocked = false;
+        let msg = "";
+
+        switch (step) {
+            case 0: // while (true) {
+                msg = "生产者: 进入循环";
+                prodStep = 1;
+                break;
+            case 1: // 生产数据 item
+                msg = "生产者: 生产数据 item (模拟)";
+                prodStep = 2;
+                break;
+            case 2: // P(Sin)
+                if (semSin <= 0) {
+                    msg = "❌ 无空槽位！P(Sin) 失败，生产者阻塞。等待消费者消费。";
+                    blocked = true;
+                    setMessage(msg, true);
+                    updateUI();
+                    return;
+                }
+                semSin--;
+                msg = "执行 P(Sin): 申请一个空槽位 → Sin = " + semSin;
+                prodStep = 3;
+                break;
+            case 3: // P(mutex)
+                if (semMutex <= 0) {
+                    msg = "⚠️ P(mutex) 失败，互斥锁已被占用，生产者等待。";
+                    blocked = true;
+                    setMessage(msg, true);
+                    updateUI();
+                    return;
+                }
+                semMutex--;
+                msg = "执行 P(mutex): 互斥访问缓冲区 → mutex = " + semMutex;
+                prodStep = 4;
+                break;
+            case 4: // 放入产品
+                // 查找一个空槽位（从 inPtr 开始线性探测，但简单环形即可）
+                let putIndex = -1;
+                for (let i = 0; i < bufferSize; i++) {
+                    if (buffer[i] === null) {
+                        putIndex = i;
+                        break;
+                    }
+                }
+                if (putIndex === -1) {
+                    msg = "❌ 错误: 没有空槽位 (信号量逻辑错误)";
+                    setMessage(msg, true);
+                    updateUI();
+                    return;
+                }
+                buffer[putIndex] = { data: 'product' };
+                inPtr = (putIndex + 1) % bufferSize;
+                msg = `放入产品到缓冲区[${putIndex}] → 缓冲区已更新`;
+                prodStep = 5;
+                break;
+            case 5: // V(mutex)
+                semMutex++;
+                msg = "执行 V(mutex): 释放互斥锁 → mutex = " + semMutex;
+                prodStep = 6;
+                break;
+            case 6: // V(Sout)
+                semSout++;
+                msg = "执行 V(Sout): 增加产品数 → Sout = " + semSout;
+                prodStep = 7;
+                break;
+            case 7: // }
+                msg = "生产者: 本次循环结束，回到循环头";
+                prodStep = 0;
+                break;
+            default:
+                msg = "生产者: 无效步骤，重置";
+                prodStep = 0;
+        }
+
+        updateUI();
+        setMessage(msg, blocked);
+    }
+
+    // ---------- 消费者单步执行 ----------
+    function consumerStep() {
+        if (consStep >= consLines.length) consStep = 0;
+        const step = consStep;
+        let blocked = false;
+        let msg = "";
+
+        switch (step) {
+            case 0: // while (true) {
+                msg = "消费者: 进入循环";
+                consStep = 1;
+                break;
+            case 1: // P(Sout)
+                if (semSout <= 0) {
+                    msg = "❌ 无产品！P(Sout) 失败，消费者阻塞。等待生产者生产。";
+                    blocked = true;
+                    setMessage(msg, true);
+                    updateUI();
+                    return;
+                }
+                semSout--;
+                msg = "执行 P(Sout): 申请一个产品 → Sout = " + semSout;
+                consStep = 2;
+                break;
+            case 2: // P(mutex)
+                if (semMutex <= 0) {
+                    msg = "⚠️ P(mutex) 失败，互斥锁已被占用，消费者等待。";
+                    blocked = true;
+                    setMessage(msg, true);
+                    updateUI();
+                    return;
+                }
+                semMutex--;
+                msg = "执行 P(mutex): 互斥访问缓冲区 → mutex = " + semMutex;
+                consStep = 3;
+                break;
+            case 3: // 取出产品
+                let takeIndex = -1;
+                for (let i = 0; i < bufferSize; i++) {
+                    if (buffer[i] !== null) {
+                        takeIndex = i;
+                        break;
+                    }
+                }
+                if (takeIndex === -1) {
+                    msg = "❌ 错误: 缓冲区无产品 (信号量逻辑错误)";
+                    setMessage(msg, true);
+                    updateUI();
+                    return;
+                }
+                buffer[takeIndex] = null;
+                outPtr = (takeIndex + 1) % bufferSize;
+                msg = `从缓冲区[${takeIndex}]取出产品 → 缓冲区已更新`;
+                consStep = 4;
+                break;
+            case 4: // V(mutex)
+                semMutex++;
+                msg = "执行 V(mutex): 释放互斥锁 → mutex = " + semMutex;
+                consStep = 5;
+                break;
+            case 5: // V(Sin)
+                semSin++;
+                msg = "执行 V(Sin): 增加空槽位 → Sin = " + semSin;
+                consStep = 6;
+                break;
+            case 6: // 消费产品
+                msg = "消费者: 消费产品 (模拟)";
+                consStep = 7;
+                break;
+            case 7: // }
+                msg = "消费者: 本次循环结束，回到循环头";
+                consStep = 0;
+                break;
+            default:
+                msg = "消费者: 无效步骤，重置";
+                consStep = 0;
+        }
+
+        updateUI();
+        setMessage(msg, blocked);
+    }
+
+    // 重置步骤（不清空缓冲区，只重置步骤指针）
+    function resetSteps() {
+        prodStep = 0;
+        consStep = 0;
+        updateUI();
+        setMessage("步骤指针已重置到循环开头，但缓冲区状态保留。");
+    }
+
+    // 事件绑定
+    produceBtn.addEventListener('click', producerStep);
+    consumeBtn.addEventListener('click', consumerStep);
+    resetBtn.addEventListener('click', resetSteps);
+    applySizeBtn.addEventListener('click', () => {
+        let newSize = parseInt(bufferSizeInput.value, 10);
+        if (isNaN(newSize)) newSize = 3;
+        newSize = Math.min(6, Math.max(1, newSize));
+        changeBufferSize(newSize);
+    });
+
+    // 初始化
+    function init() {
+        bufferSize = 3;
+        bufferSizeInput.value = 3;
+        changeBufferSize(3);
+    }
+    init();
+</script>
+</body>
+</html>

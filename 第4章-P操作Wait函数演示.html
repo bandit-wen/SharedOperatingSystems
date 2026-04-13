@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>P操作(wait)动画演示 | 信号量 · 阻塞队列</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #eef2f5;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 32px;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.05);
+            padding: 1.8rem 2rem;
+            border: 1px solid #e2e9f0;
+        }
+
+        h2 {
+            font-size: 1.6rem;
+            font-weight: 600;
+            color: #1a3e50;
+            letter-spacing: -0.2px;
+        }
+
+        .sub {
+            font-size: 0.8rem;
+            color: #54738f;
+            background: #eff3f8;
+            display: inline-block;
+            padding: 0.2rem 0.9rem;
+            border-radius: 30px;
+            margin-top: 0.3rem;
+            margin-bottom: 1.6rem;
+            font-family: monospace;
+        }
+
+        /* 核心区域 */
+        .core-area {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.2rem;
+            margin-bottom: 1.8rem;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sem-box {
+            background: #f8fafc;
+            border-radius: 28px;
+            padding: 0.8rem 1.5rem;
+            text-align: center;
+            border: 1px solid #e4ecf3;
+            min-width: 150px;
+        }
+
+        .sem-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            color: #6c8ea8;
+            font-weight: 600;
+        }
+
+        .sem-value {
+            font-size: 3rem;
+            font-weight: 700;
+            font-family: 'Fira Mono', monospace;
+            color: #1f5e7e;
+            line-height: 1;
+        }
+
+        .queue-box {
+            background: #ffffff;
+            border-radius: 28px;
+            padding: 0.6rem 1.2rem;
+            border: 1px solid #dce5ec;
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .queue-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #5b7f99;
+        }
+
+        .queue-list {
+            font-family: 'Fira Mono', monospace;
+            font-size: 0.9rem;
+            color: #c27d2e;
+            margin-top: 5px;
+            word-break: break-all;
+        }
+
+        /* 控制栏 */
+        .controls {
+            background: #f9fbfd;
+            border-radius: 24px;
+            padding: 1rem 1.2rem;
+            margin: 1rem 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 60px;
+            border: 1px solid #e2eaf1;
+        }
+
+        .control-group label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #2c5a7a;
+        }
+
+        input[type="number"] {
+            width: 70px;
+            padding: 0.2rem 0.4rem;
+            border-radius: 20px;
+            border: 1px solid #cbdde9;
+            text-align: center;
+        }
+
+        button {
+            background: #ecf3f8;
+            border: none;
+            padding: 0.5rem 1.2rem;
+            border-radius: 60px;
+            font-family: monospace;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.05s linear;
+            font-size: 0.85rem;
+        }
+
+        button.primary {
+            background: #1f5e7e;
+            color: white;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+
+        button.primary:active {
+            transform: scale(0.97);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* 步骤动画区域 */
+        .steps-panel {
+            background: #f7fafc;
+            border-radius: 24px;
+            padding: 1rem 1.2rem;
+            margin: 1rem 0;
+            border: 1px solid #e6edf4;
+        }
+
+        .step-timeline {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 1rem;
+        }
+
+        .step {
+            background: #eef2f7;
+            border-radius: 40px;
+            padding: 0.3rem 1rem;
+            font-size: 0.75rem;
+            font-family: monospace;
+            color: #4f6f8a;
+            transition: all 0.1s;
+        }
+
+        .step.active {
+            background: #1f5e7e;
+            color: white;
+        }
+
+        /* 日志区域 */
+        .log-container {
+            margin-top: 1rem;
+            border-top: 1px solid #e2ecf2;
+            padding-top: 1rem;
+        }
+
+        .log-header {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #3a6e8a;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .log-list {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 0.8rem;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Fira Mono', monospace;
+            font-size: 0.75rem;
+            border: 1px solid #e2eaf1;
+        }
+
+        .log-entry {
+            padding: 0.3rem 0;
+            border-bottom: 1px solid #f0f4f8;
+            color: #2c5a7a;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .reset-btn {
+            background: #eef2f7;
+            color: #4f6f8a;
+        }
+
+        footer {
+            font-size: 0.65rem;
+            text-align: center;
+            color: #8aa5bc;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>🧮 P操作 (wait) 内部逻辑动画</h2>
+    <div class="sub">信号量减法 · 条件阻塞 · 加入队列 | 每次点击执行完整P操作</div>
+
+    <!-- 信号量与阻塞队列 -->
+    <div class="core-area">
+        <div class="sem-box">
+            <div class="sem-label">📟 信号量 (S)</div>
+            <div class="sem-value" id="semValue">1</div>
+        </div>
+        <div class="queue-box">
+            <div class="queue-title">⏳ 阻塞队列 (等待该信号量)</div>
+            <div class="queue-list" id="queueList">无</div>
+            <div style="font-size:0.65rem; color:#8ba3b5; margin-top:4px;">队列长度 = |min(S,0)|</div>
+        </div>
+    </div>
+
+    <!-- 控制栏：初值设定、操作按钮 -->
+    <div class="controls">
+        <div class="control-group">
+            <label>🎛️ 信号量初值</label>
+            <input type="number" id="initSem" min="0" max="5" value="1" step="1">
+            <button id="applyInitBtn" class="reset-btn">设置并重置</button>
+        </div>
+        <button id="pActionBtn" class="primary">🔻 执行一次完整的 P 操作</button>
+    </div>
+
+    <!-- 动画步骤展示区（当前高亮） -->
+    <div class="steps-panel">
+        <div class="step-timeline" id="stepTimeline">
+            <div class="step">① 读取信号量</div>
+            <div class="step">② 做减法 (S = S-1)</div>
+            <div class="step">③ 判断 S < 0 ?</div>
+            <div class="step">④ 阻塞入队 / 成功继续</div>
+        </div>
+        <div class="log-area" id="currentStepMsg" style="background:#ffffff; border-radius:20px; padding:0.8rem 1rem; font-family:monospace; border-left:4px solid #8bb4ce;">
+            💡 点击「执行一次完整的P操作」查看逐步演示。
+        </div>
+    </div>
+
+    <!-- 历史日志记录区 -->
+    <div class="log-container">
+        <div class="log-header">
+            📋 操作日志（每次P操作的四步记录）
+            <button id="clearLogBtn" class="reset-btn" style="padding:0.1rem 0.6rem; font-size:0.65rem;">清空日志</button>
+        </div>
+        <div class="log-list" id="logList">
+            <div class="log-entry">✨ 就绪，可开始演示。</div>
+        </div>
+    </div>
+
+    <div class="explain" style="background:#f7fafc; border-radius:20px; padding:0.8rem 1rem; font-size:0.75rem; margin-top:0.5rem;">
+        📌 <strong>P(wait) 操作内涵</strong>：每次调用都会执行 <code>S.value--</code>，若结果 < 0 则当前进程阻塞并加入等待队列；否则进程继续。阻塞队列仅当信号量为负时才有意义（绝对值 = 阻塞进程数）。
+    </div>
+    <footer>每点击一次代表一个新进程请求资源，自动展示完整PV原子操作（速度固定1000ms/步）。</footer>
+</div>
+
+<script>
+    // ---------- 核心状态 ----------
+    let semValue = 1;               // 当前信号量值
+    let blockedQueue = [];          // 阻塞队列，存储进程名称（如 "P1", "P2"）
+    let nextPid = 1;                // 下一个进程的编号
+
+    // 动画控制
+    let isAnimating = false;
+    const STEP_DELAY = 1000;        // 固定1000ms
+
+    // DOM 元素
+    const semValueSpan = document.getElementById('semValue');
+    const queueListSpan = document.getElementById('queueList');
+    const currentStepMsgDiv = document.getElementById('currentStepMsg');
+    const pActionBtn = document.getElementById('pActionBtn');
+    const applyInitBtn = document.getElementById('applyInitBtn');
+    const initSemInput = document.getElementById('initSem');
+    const clearLogBtn = document.getElementById('clearLogBtn');
+    const logListDiv = document.getElementById('logList');
+    const stepDivs = document.querySelectorAll('.step');
+
+    // 辅助: 更新UI (信号量数值, 队列显示) —— 不做任何自动修复
+    function updateUI() {
+        semValueSpan.innerText = semValue;
+        if (blockedQueue.length === 0) {
+            queueListSpan.innerText = '无';
+        } else {
+            queueListSpan.innerText = '[' + blockedQueue.join(', ') + ']';
+        }
+    }
+
+    // 高亮步骤 (index 0~3)
+    function highlightStep(index) {
+        stepDivs.forEach((div, i) => {
+            if (i === index) div.classList.add('active');
+            else div.classList.remove('active');
+        });
+    }
+
+    function clearHighlight() {
+        stepDivs.forEach(div => div.classList.remove('active'));
+    }
+
+    // 添加日志条目
+    function addLogEntry(message) {
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        const timestamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute:'2-digit', second:'2-digit' });
+        entry.innerText = `[${timestamp}] ${message}`;
+        logListDiv.appendChild(entry);
+        // 自动滚动到底部
+        logListDiv.scrollTop = logListDiv.scrollHeight;
+    }
+
+    // 清空日志
+    function clearLog() {
+        logListDiv.innerHTML = '<div class="log-entry">📋 日志已清空，新操作将记录在此。</div>';
+    }
+
+    // 延迟函数
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // 执行完整的一次P操作 (动画展示)
+    async function executePOperation() {
+        if (isAnimating) {
+            addLogEntry("⏳ 操作进行中，请稍后再试");
+            return;
+        }
+        isAnimating = true;
+        pActionBtn.disabled = true;
+        applyInitBtn.disabled = true;
+
+        // 生成本次请求的进程ID
+        const currentPid = `P${nextPid++}`;
+        const oldValue = semValue;
+        
+        // 记录本次操作开始标记
+        addLogEntry(`🚀 进程 ${currentPid} 开始执行 P 操作 (当前信号量=${oldValue})`);
+
+        // ----- 步骤1: 读取信号量 -----
+        highlightStep(0);
+        const step1Msg = `📖 步骤① 读取信号量 → 当前 S.value = ${oldValue}`;
+        currentStepMsgDiv.innerHTML = step1Msg;
+        addLogEntry(step1Msg);
+        await delay(STEP_DELAY);
+        
+        // ----- 步骤2: 做减法 -----
+        highlightStep(1);
+        semValue--;   // 原子减1
+        const step2Msg = `➖ 步骤② 信号量减1 → ${oldValue} → ${semValue}`;
+        currentStepMsgDiv.innerHTML = step2Msg;
+        addLogEntry(step2Msg);
+        updateUI();
+        await delay(STEP_DELAY);
+        
+        // ----- 步骤3: 判断是否小于0 -----
+        highlightStep(2);
+        const after = semValue;
+        let step3Msg = '';
+        if (after < 0) {
+            step3Msg = `🧐 步骤③ 判断 S.value < 0 ? → 当前 ${after} < 0，条件成立，进程需要阻塞。`;
+        } else {
+            step3Msg = `👍 步骤③ 判断 S.value < 0 ? → 当前 ${after} ≥ 0，条件不成立，进程获得资源继续执行。`;
+        }
+        currentStepMsgDiv.innerHTML = step3Msg;
+        addLogEntry(step3Msg);
+        await delay(STEP_DELAY);
+        
+        // ----- 步骤4: 阻塞入队 或 成功继续 -----
+        highlightStep(3);
+        let step4Msg = '';
+        if (after < 0) {
+            // 阻塞当前进程，加入队列尾部
+            blockedQueue.push(currentPid);
+            updateUI();
+            step4Msg = `⛔ 步骤④ 自我阻塞 & 加入等待队列 → 进程 ${currentPid} 阻塞，加入队列尾部。当前队列: [${blockedQueue.join(', ')}] (长度=${blockedQueue.length})。`;
+            currentStepMsgDiv.innerHTML = step4Msg;
+            addLogEntry(step4Msg);
+        } else {
+            step4Msg = `✅ 步骤④ 成功获得临界资源 → 进程 ${currentPid} 未阻塞，继续执行临界区代码。P操作完成，信号量 = ${after}。`;
+            currentStepMsgDiv.innerHTML = step4Msg;
+            addLogEntry(step4Msg);
+        }
+        await delay(STEP_DELAY);
+        
+        // 完成，清除高亮
+        clearHighlight();
+        currentStepMsgDiv.innerHTML = `✔ 本次P操作执行完毕 (${currentPid})。可继续点击按钮模拟新进程。`;
+        addLogEntry(`🏁 进程 ${currentPid} 的P操作结束，当前信号量=${semValue}，队列=[${blockedQueue.join(',') || '空'}]`);
+        
+        // 解锁按钮
+        isAnimating = false;
+        pActionBtn.disabled = false;
+        applyInitBtn.disabled = false;
+    }
+
+    // 重置系统 (根据初值)
+    function resetSystem(newInitValue) {
+        if (isAnimating) return;
+        semValue = newInitValue;
+        blockedQueue = [];
+        nextPid = 1;               // 重置进程编号，避免编号过大
+        updateUI();
+        clearHighlight();
+        currentStepMsgDiv.innerHTML = `🔄 系统已重置：信号量 = ${semValue}，阻塞队列已清空。可以开始执行P操作。`;
+        addLogEntry(`🔁 系统重置: 信号量初值=${semValue}，阻塞队列清空，进程编号重置为1。`);
+    }
+
+    // 应用初值并重置
+    function applyInitAndReset() {
+        let newVal = parseInt(initSemInput.value, 10);
+        if (isNaN(newVal)) newVal = 1;
+        newVal = Math.min(5, Math.max(0, newVal));
+        initSemInput.value = newVal;
+        resetSystem(newVal);
+    }
+
+    // 事件绑定
+    pActionBtn.addEventListener('click', () => {
+        executePOperation();
+    });
+    applyInitBtn.addEventListener('click', () => {
+        applyInitAndReset();
+    });
+    clearLogBtn.addEventListener('click', () => {
+        clearLog();
+    });
+    initSemInput.addEventListener('change', () => {
+        applyInitAndReset();
+    });
+
+    // 初始化
+    function init() {
+        resetSystem(1);
+        initSemInput.value = 1;
+        clearLog(); // 清空初始日志
+        addLogEntry("✨ 演示就绪，信号量初值=1，阻塞队列为空。");
+    }
+    init();
+</script>
+</body>
+</html>
