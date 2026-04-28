@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>存储器地址概念动画演示 | 存储单元按地址编号</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(145deg, #eef2f5 0%, #e0e8f0 100%);
+            font-family: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .card {
+            max-width: 950px;
+            width: 100%;
+            background: rgba(255,255,255,0.96);
+            backdrop-filter: blur(2px);
+            border-radius: 48px;
+            box-shadow: 0 25px 40px -12px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #1e3a5f;
+            padding: 1.4rem 2rem;
+            color: white;
+        }
+        .header h1 {
+            font-weight: 700;
+            font-size: 1.7rem;
+            letter-spacing: -0.3px;
+        }
+        .header p {
+            font-size: 0.85rem;
+            opacity: 0.85;
+            margin-top: 6px;
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        /* 存储器阵列 */
+        .memory-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 12px;
+            margin: 1.5rem 0;
+            background: #f8fafc;
+            padding: 1rem;
+            border-radius: 32px;
+            border: 1px solid #e2ecf3;
+        }
+        .memory-cell {
+            aspect-ratio: 1 / 1;
+            background: white;
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Fira Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border: 2px solid #cbdde9;
+            transition: all 0.1s ease;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .memory-cell .addr {
+            color: #2c7da0;
+            font-size: 0.7rem;
+            background: #eef3fc;
+            padding: 0.1rem 0.4rem;
+            border-radius: 20px;
+            margin-bottom: 4px;
+        }
+        .memory-cell .data {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #1f4662;
+        }
+        .memory-cell.highlight {
+            background: #fdebb3;
+            border-color: #f5a623;
+            transform: scale(1.02);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+        }
+        .memory-cell.highlight .addr {
+            background: #f5d98f;
+        }
+
+        /* 控制栏 */
+        .control-panel {
+            background: #f1f5f9;
+            border-radius: 36px;
+            padding: 1.2rem 1.5rem;
+            margin: 1rem 0;
+        }
+        .address-input-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+        label {
+            font-weight: 500;
+            color: #2c5a7a;
+        }
+        input {
+            background: white;
+            border: 1px solid #cbdde9;
+            border-radius: 60px;
+            padding: 0.5rem 1rem;
+            font-family: monospace;
+            width: 100px;
+            text-align: center;
+            font-size: 1rem;
+        }
+        button {
+            background: #2c7da0;
+            border: none;
+            padding: 0.5rem 1.2rem;
+            border-radius: 60px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.05s linear;
+            font-family: monospace;
+        }
+        button:active {
+            transform: scale(0.96);
+        }
+        button.secondary {
+            background: #6c8ea8;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 0.5rem;
+        }
+        .info-text {
+            background: #eef3fc;
+            border-radius: 28px;
+            padding: 0.8rem 1.2rem;
+            font-size: 0.85rem;
+            color: #2c5778;
+            text-align: center;
+            margin-top: 1rem;
+            border-left: 4px solid #2c7da0;
+        }
+        .current-addr {
+            font-family: monospace;
+            font-weight: 700;
+            background: #fff1cf;
+            padding: 0.2rem 0.6rem;
+            border-radius: 30px;
+        }
+        footer {
+            background: #ecf3f8;
+            padding: 0.8rem;
+            text-align: center;
+            font-size: 0.7rem;
+            color: #6f8eaa;
+            border-top: 1px solid #d4e2ec;
+        }
+        @media (max-width: 600px) {
+            .memory-grid { gap: 6px; }
+            .memory-cell .addr { font-size: 0.6rem; }
+            .memory-cell .data { font-size: 0.8rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="header">
+        <h1>🧠 存储器地址概念</h1>
+        <p>每个存储单元都有一个唯一的编号 —— 地址 | 通过地址读写数据</p>
+    </div>
+    <div class="content">
+        <!-- 存储器方格阵列 (8x4 = 32个单元) -->
+        <div class="memory-grid" id="memoryGrid"></div>
+
+        <div class="control-panel">
+            <div class="address-input-group">
+                <label>🔢 地址编号:</label>
+                <input type="number" id="addrInput" min="0" max="31" value="0" step="1">
+                <button id="gotoBtn">📍 跳转并选中</button>
+                <button id="randomBtn">🎲 随机地址</button>
+            </div>
+            <div class="action-buttons">
+                <button id="readBtn" class="secondary">📖 读数据</button>
+                <button id="writeBtn">✍️ 写数据 (自增1)</button>
+            </div>
+            <div class="info-text" id="infoMessage">
+                💡 点击任意方格选中对应地址，或输入地址后点击「跳转」。
+            </div>
+        </div>
+    </div>
+    <footer>🔹 每个方格代表一个存储单元，上方数字为地址编号，下方为存储的数据。通过地址即可访问对应单元。</footer>
+</div>
+
+<script>
+    // 存储器配置: 32个单元, 地址 0~31
+    const MEM_SIZE = 32;
+    // 存储数据 (初始化为地址值的10倍，便于观察)
+    let memory = [];
+    for (let i = 0; i < MEM_SIZE; i++) {
+        memory[i] = i * 10;   // 0,10,20,30...
+    }
+
+    let currentAddress = 0;     // 当前高亮的地址
+
+    // DOM 元素
+    const gridContainer = document.getElementById('memoryGrid');
+    const addrInput = document.getElementById('addrInput');
+    const gotoBtn = document.getElementById('gotoBtn');
+    const randomBtn = document.getElementById('randomBtn');
+    const readBtn = document.getElementById('readBtn');
+    const writeBtn = document.getElementById('writeBtn');
+    const infoMessage = document.getElementById('infoMessage');
+
+    // 渲染存储器网格 (8列 x 4行)
+    function renderMemory() {
+        gridContainer.innerHTML = '';
+        for (let addr = 0; addr < MEM_SIZE; addr++) {
+            const cell = document.createElement('div');
+            cell.className = 'memory-cell';
+            if (addr === currentAddress) {
+                cell.classList.add('highlight');
+            }
+            // 显示地址编号和数据
+            const addrSpan = document.createElement('div');
+            addrSpan.className = 'addr';
+            addrSpan.innerText = `[${addr}]`;
+            const dataSpan = document.createElement('div');
+            dataSpan.className = 'data';
+            dataSpan.innerText = memory[addr];
+            cell.appendChild(addrSpan);
+            cell.appendChild(dataSpan);
+            // 点击事件：选中该地址
+            cell.addEventListener('click', (function(a) {
+                return function() { selectAddress(a); };
+            })(addr));
+            gridContainer.appendChild(cell);
+        }
+    }
+
+    // 选中指定地址 (高亮更新)
+    function selectAddress(addr) {
+        if (addr < 0 || addr >= MEM_SIZE) {
+            infoMessage.innerHTML = `❌ 地址 ${addr} 超出范围 (0 ~ ${MEM_SIZE-1})`;
+            return;
+        }
+        currentAddress = addr;
+        addrInput.value = addr;
+        renderMemory();
+        infoMessage.innerHTML = `✅ 已选中地址 ${addr}，该单元当前数据 = ${memory[addr]}`;
+    }
+
+    // 读操作: 显示当前地址的数据
+    function readCurrent() {
+        const data = memory[currentAddress];
+        infoMessage.innerHTML = `📖 读操作: 地址 ${currentAddress} 的数据为 <strong>${data}</strong>`;
+        // 添加短暂动画反馈
+        const cells = document.querySelectorAll('.memory-cell');
+        if (cells[currentAddress]) {
+            cells[currentAddress].style.transform = 'scale(0.98)';
+            setTimeout(() => {
+                if (cells[currentAddress]) cells[currentAddress].style.transform = '';
+            }, 150);
+        }
+    }
+
+    // 写操作: 将当前地址的数据自增1
+    function writeCurrent() {
+        const oldVal = memory[currentAddress];
+        memory[currentAddress] = oldVal + 1;
+        renderMemory();  // 重新渲染更新显示
+        infoMessage.innerHTML = `✍️ 写操作: 地址 ${currentAddress} 的数据从 ${oldVal} 变为 <strong>${memory[currentAddress]}</strong>`;
+        // 动画反馈
+        const cells = document.querySelectorAll('.memory-cell');
+        if (cells[currentAddress]) {
+            cells[currentAddress].style.transform = 'scale(0.98)';
+            setTimeout(() => {
+                if (cells[currentAddress]) cells[currentAddress].style.transform = '';
+            }, 150);
+        }
+    }
+
+    // 随机地址
+    function randomAddress() {
+        const rand = Math.floor(Math.random() * MEM_SIZE);
+        selectAddress(rand);
+    }
+
+    // 从输入框跳转
+    function gotoAddress() {
+        let addr = parseInt(addrInput.value, 10);
+        if (isNaN(addr)) addr = 0;
+        selectAddress(addr);
+    }
+
+    // 事件绑定
+    gotoBtn.addEventListener('click', gotoAddress);
+    randomBtn.addEventListener('click', randomAddress);
+    readBtn.addEventListener('click', readCurrent);
+    writeBtn.addEventListener('click', writeCurrent);
+    // 输入框支持回车
+    addrInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') gotoAddress();
+    });
+
+    // 初始化
+    renderMemory();
+    selectAddress(0);
+</script>
+</body>
+</html>

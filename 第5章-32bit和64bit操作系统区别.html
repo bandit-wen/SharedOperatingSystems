@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>32位 vs 64位操作系统 | 核心区别动画演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #e9eef3 0%, #dce3ec 100%);
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(4px);
+            border-radius: 48px;
+            box-shadow: 0 25px 45px -12px rgba(0,0,0,0.25);
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+
+        .header {
+            background: #1a2e3f;
+            padding: 1.5rem 2rem;
+            color: white;
+            text-align: center;
+        }
+        .header h1 {
+            font-weight: 700;
+            font-size: 1.8rem;
+            letter-spacing: -0.3px;
+        }
+        .header p {
+            font-size: 0.85rem;
+            opacity: 0.85;
+            margin-top: 6px;
+        }
+
+        /* 双栏对比布局 */
+        .compare-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            padding: 2rem;
+        }
+        .compare-card {
+            flex: 1;
+            min-width: 280px;
+            background: #ffffff;
+            border-radius: 32px;
+            overflow: hidden;
+            box-shadow: 0 12px 24px -12px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 1px solid #e2ecf3;
+        }
+        .compare-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 30px -12px rgba(0,0,0,0.15);
+        }
+        .card-header {
+            padding: 1.2rem 1.5rem;
+            font-size: 1.6rem;
+            font-weight: 700;
+            text-align: center;
+        }
+        .card-header.x86 {
+            background: #e1edfc;
+            color: #1663b5;
+            border-bottom: 3px solid #1663b5;
+        }
+        .card-header.x64 {
+            background: #e2f3ea;
+            color: #2a7553;
+            border-bottom: 3px solid #2a7553;
+        }
+        .card-body {
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+        }
+        .spec-item {
+            background: #f8fafc;
+            border-radius: 20px;
+            padding: 0.8rem 1rem;
+            transition: all 0.1s;
+        }
+        .spec-title {
+            font-weight: 700;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #5c7f96;
+            margin-bottom: 0.4rem;
+        }
+        .spec-value {
+            font-size: 1rem;
+            font-weight: 500;
+            color: #1f4662;
+            display: flex;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .highlight {
+            background: #fff1cf;
+            padding: 0.2rem 0.5rem;
+            border-radius: 24px;
+            font-family: monospace;
+        }
+        .address-bar {
+            margin-top: 0.5rem;
+            background: #eef2f7;
+            border-radius: 30px;
+            height: 12px;
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+        .address-fill {
+            height: 100%;
+            width: 0%;
+            background: #3b82f6;
+            border-radius: 30px;
+            transition: width 0.8s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+        }
+        .address-fill.x64 {
+            background: #10b981;
+        }
+        .mem-label {
+            font-size: 0.7rem;
+            color: #6f8eaa;
+            margin-top: 4px;
+            text-align: right;
+        }
+        .animated-icon {
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 0.5rem;
+            animation: subtlePulse 2s infinite;
+        }
+        @keyframes subtlePulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
+        .footnote {
+            background: #f0f4fa;
+            padding: 1rem 2rem;
+            font-size: 0.75rem;
+            color: #4f6f8a;
+            text-align: center;
+            border-top: 1px solid #d4e2ec;
+        }
+        button {
+            background: none;
+            border: none;
+            cursor: default;
+        }
+        @media (max-width: 700px) {
+            .compare-row { padding: 1rem; }
+            .card-header { font-size: 1.3rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>⚙️ 32位 vs 64位 操作系统</h1>
+        <p>寻址能力 · 数据处理 · 兼容性 · 性能对比</p>
+    </div>
+
+    <div class="compare-row">
+        <!-- 32位卡片 -->
+        <div class="compare-card">
+            <div class="card-header x86">
+                🧩 32位 (x86)
+            </div>
+            <div class="card-body">
+                <div class="spec-item">
+                    <div class="spec-title">📐 内存寻址范围</div>
+                    <div class="spec-value">
+                        <span>最大 <strong>4 GB</strong></span>
+                        <span class="highlight">2³² = 4,294,967,296 字节</span>
+                    </div>
+                    <div class="address-bar">
+                        <div class="address-fill" id="addrFill32" style="width: 4%;"></div>
+                    </div>
+                    <div class="mem-label">实际可用约 3.2~3.8 GB (系统保留)</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-title">📝 寄存器宽度</div>
+                    <div class="spec-value">
+                        <span>通用寄存器: <strong>32位</strong> (EAX, EBX, ECX...)</span>
+                    </div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-title">⚡ 数据处理能力</div>
+                    <div class="spec-value">
+                        <span>一次处理 <strong>32位</strong> (4字节) 数据</span>
+                    </div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-title">💿 软件兼容性</div>
+                    <div class="spec-value">
+                        <span>✔️ 原生运行 32位程序</span><br>
+                        <span>❌ 不能运行 64位程序</span>
+                    </div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-title">🎯 典型场景</div>
+                    <div class="spec-value">
+                        <span>旧设备、嵌入式系统、轻量级应用</span>
+                    </div>
+                </div>
+                <div class="animated-icon">📀</div>
+            </div>
+        </div>
+
+        <!-- 64位卡片 -->
+        <div class="compare-card">
+            <div class="card-header x64">
+                🚀 64位 (x86-64 / ARM64)
+            </div>
+            <div class="card-body">
+                <div class="spec-item">
+                    <div class="spec-title">📐 内存寻址范围</div>
+                    <div class="spec-value">
+                        <span>理论最大 <strong>16 EB</strong> (艾字节)</span>
+                        <span class="highlight">2⁶⁴ = 16,777,216 TB</span>
+                    </div>
+                    <div class="address-bar">
+                        <div class="address-fill x64" id="addrFill64" style="width: 40%;"></div>
+                    </div>
+                    <div class="mem-label">实际当前支持: 最大 128GB ~ 6TB (取决于OS/硬件)</div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-title">📝 寄存器宽度</div>
+                    <div class="spec-value">
+                        <span>通用寄存器: <strong>64位</strong> (RAX, RBX, RCX...)</span>
+                        <span>更多寄存器 (R8-R15)</span>
+                    </div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-title">⚡ 数据处理能力</div>
+                    <div class="spec-value">
+                        <span>一次处理 <strong>64位</strong> (8字节) 数据</span>
+                        <span>支持更大整数/地址运算</span>
+                    </div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-title">💿 软件兼容性</div>
+                    <div class="spec-value">
+                        <span>✔️ 原生运行 64位程序</span><br>
+                        <span>✔️ 兼容运行 32位程序 (通过 WoW64)</span>
+                    </div>
+                </div>
+
+                <div class="spec-item">
+                    <div class="spec-title">🎯 典型场景</div>
+                    <div class="spec-value">
+                        <span>高性能计算、大型数据库、科学计算、现代操作系统</span>
+                    </div>
+                </div>
+                <div class="animated-icon">⚙️</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footnote">
+        💡 <strong>核心区别</strong>：64位系统拥有更大的寻址空间、更宽的寄存器、更强的整数运算能力，同时向下兼容32位软件。但需要64位CPU和操作系统支持。<br>
+        📊 内存条动画：左侧4GB比例（实际物理限制），右侧展示远超4GB的寻址能力。
+    </div>
+</div>
+
+<script>
+    // 简单动态增强：鼠标悬停时填充条微动，更直观
+    const fill32 = document.getElementById('addrFill32');
+    const fill64 = document.getElementById('addrFill64');
+    
+    // 为了趣味，鼠标悬停卡片时填充条动画加速 (仅视觉)
+    const card32 = document.querySelector('.compare-card:first-child');
+    const card64 = document.querySelector('.compare-card:last-child');
+    
+    if (card32) {
+        card32.addEventListener('mouseenter', () => {
+            fill32.style.transition = 'width 0.3s ease-out';
+            fill32.style.width = '6%';
+        });
+        card32.addEventListener('mouseleave', () => {
+            fill32.style.width = '4%';
+        });
+    }
+    if (card64) {
+        card64.addEventListener('mouseenter', () => {
+            fill64.style.transition = 'width 0.3s ease-out';
+            fill64.style.width = '48%';
+        });
+        card64.addEventListener('mouseleave', () => {
+            fill64.style.width = '40%';
+        });
+    }
+    // 初始加载动画
+    window.addEventListener('load', () => {
+        fill32.style.width = '4%';
+        fill64.style.width = '40%';
+    });
+</script>
+</body>
+</html>
